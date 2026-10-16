@@ -16,6 +16,7 @@ Sadece standart kütüphane kullanılır.
 
 import argparse
 import base64
+import functools
 import html
 import http.client as http_client
 import json
@@ -371,6 +372,88 @@ def scrape_a101_aktuel():
     return items
 
 
+# ─── Yunus aktüel (Akakçe üzerinden) ────────────────────────────────────
+# yunusonline.com yurt dışından (GitHub) gelen bağlantıları kesiyor; tam katalog bu yüzden
+# evdeki bilgisayardan gelir (push_yunus.py). Yunus'un haftalık aktüel paylaşımlarını ise
+# Akakçe topluyor ve broşürdeki her ürünün adını ve fiyatını sayfaya gömüyor.
+AKAKCE = "https://www.akakce.com"
+AKAKCE_CDN = "https://cdn.akakce.com"
+AKAKCE_YUNUS = AKAKCE + "/brosurler/yunusmarket"
+
+
+def astro_value(v):
+    """Akakçe sayfasına gömülü veri [0, değer] / [1, [liste]] biçiminde; düz Python'a çevirir."""
+    if isinstance(v, list) and len(v) == 2 and v[0] in (0, 1):
+        tag, inner = v
+        if tag == 1:
+            return [astro_value(x) for x in inner]
+        return {k: astro_value(x) for k, x in inner.items()} if isinstance(inner, dict) else inner
+    return v
+
+
+def akakce_pages(page_html):
+    t = html.unescape(page_html)
+    i = t.find('"pages":')
+    if i < 0:
+        return []
+    raw, _ = json.JSONDecoder().raw_decode(t, i + len('"pages":'))
+    return astro_value(raw) or []
+
+
+@functools.lru_cache(maxsize=1)
+def yunus_aktuel():
+    """Güncel Yunus aktüel paylaşımları: broşür girişi (sayfa görselleri + aranabilir ürün adları)
+    ve fiyatlı ürünler. Broşür ve ürün listesi aynı taramadan çıkar (bir kez çalışır)."""
+    today = datetime.now(TR_TZ).date()
+    paths = sorted(set(re.findall(r'href="(/brosurler/yunusmarket-[^"]+)"', http(AKAKCE_YUNUS))))
+    posts = []
+    for path in paths:
+        page = http(AKAKCE + path)
+        time.sleep(0.7)
+        rng = re.search(r'<span id="br_s">([^<]+)</span>', page)
+        if not rng:
+            continue
+        start = aktuel_dates(rng.group(1).split("-")[0].strip(), today)[0]
+        end = range_end(rng.group(1), today) or start
+        if not start or end < today:
+            continue
+        posts.append((start, end, path, akakce_pages(page)))
+    posts.sort(key=lambda p: p[0], reverse=True)  # en yeni paylaşım önce
+
+    images, texts, items, seen_pages, seen_items = [], [], [], set(), set()
+    for start, end, path, pages in posts:
+        label = tr_range(start, end)
+        for pg in pages:
+            clips = [c for c in pg.get("clips") or [] if c.get("n")]
+            sig = frozenset(c["n"] for c in clips)
+            if sig and sig in seen_pages:  # Instagram ve Facebook'ta aynı sayfa iki kez paylaşılabiliyor
+                continue
+            seen_pages.add(sig)
+            images.append(AKAKCE_CDN + (pg.get("hriURL") or pg.get("lriURL")))
+            texts.append(" ".join(c["n"] for c in clips))
+            for c in clips:
+                if not c.get("p"):
+                    continue
+                price = float(c["p"].replace(".", "").replace(",", "."))
+                if (c["n"], price) in seen_items:
+                    continue
+                seen_items.add((c["n"], price))
+                items.append({
+                    "n": c["n"].strip(), "s": "", "i": AKAKCE_CDN + c["tu"] if c.get("tu") else "", "c": "",
+                    "d": label, "ds": start.isoformat(),
+                    "p": [["yunus", price, unit_price(c["n"], price), f"Aktüel · {label}"]],
+                })
+    if not images:
+        raise RuntimeError("yunus aktüel: güncel paylaşım bulunamadı")
+    log(f"yunus aktüel: {len(images)} sayfa, {len(items)} fiyatlı ürün")
+    brochure = {
+        "name": "Yunus", "title": "Yunus aktüel",
+        "date": tr_range(min(p[0] for p in posts), max(p[1] for p in posts)),
+        "url": AKAKCE_YUNUS, "images": images, "texts": texts,
+    }
+    return {"brochure": brochure, "items": items}
+
+
 # ─── Broşürler ──────────────────────────────────────────────────────────
 
 def scrape_cagdas():
@@ -474,7 +557,7 @@ def main():
     ap.add_argument("--out", default="web/data")
     ap.add_argument("--previous", default="", help="bir önceki products.json (yedek için)")
     ap.add_argument("--previous-brochures", default="")
-    ap.add_argument("--only", default="", help="test için: mf,yunus,aktuel,brochures")
+    ap.add_argument("--only", default="", help="test için: mf,yunus,aktuel,brochures (aktuel: BİM, A101, Yunus)")
     ap.add_argument("--reuse-today", action="store_true",
                     help="bugün zaten toplanmış kaynakları yeniden tarama (kod güncellemesinde sitelere yük olmasın)")
     ap.add_argument("--yunus-file", default="",
@@ -516,10 +599,12 @@ def main():
     if want("aktuel"):
         collect("aktuel", "BİM aktüel", scrape_bim_aktuel)
         collect("a101_aktuel", "A101 aktüel", scrape_a101_aktuel)
+        collect("yunus_aktuel", "Yunus aktüel", lambda: yunus_aktuel()["items"])
 
     brochures = []
     if want("brochures"):
-        for name, fn in (("Çağdaş", scrape_cagdas), ("Anadolu Tat", scrape_anadolutat)):
+        for name, fn in (("Çağdaş", scrape_cagdas), ("Anadolu Tat", scrape_anadolutat),
+                         ("Yunus", lambda: yunus_aktuel()["brochure"])):
             b, ok[name] = run(name, fn, prev_br.get(name))
             if b:
                 brochures.append(b)
