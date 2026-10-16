@@ -26,8 +26,17 @@ const unitValue = (u) => { const m = u && u.match(/([\d.]+,\d+)/); return m ? pa
 
 // ─── Veri ──────────────────────────────────────────────────────────────
 let items = [];
+let brochures = []; // Çağdaş, Anadolu Tat, Şok broşürleri; Şok'ta sayfa metinleri de var (texts)
+
+async function loadBrochures() {
+  try {
+    const data = await (await fetch("data/brochures.json", { cache: "no-cache" })).json();
+    brochures = data.brochures.map((b) => ({ ...b, pw: (b.texts || []).map((t) => norm(t).split(" ")) }));
+  } catch { brochures = []; }
+}
 
 async function loadData() {
+  const brochuresReady = loadBrochures();
   try {
     const res = await fetch("data/products.json", { cache: "no-cache" });
     const data = await res.json();
@@ -48,7 +57,9 @@ async function loadData() {
   } catch (e) {
     $("#updated").textContent = "Fiyatlar yüklenemedi. İnternet bağlantını kontrol et.";
   }
+  await brochuresReady;
   if ($("#q").value) search();
+  if ($("#tab-aktuel").classList.contains("active")) renderAktuel(true);
 }
 
 /** Ad + gramajdan sıralamasız anahtar: "Pınar Organik Süt 1 Lt" ile "PINAR SUT ORGANIK 1 LT" aynı çıkar. */
@@ -105,22 +116,55 @@ function score(it, tokens) {
   return Math.max(total, 1);
 }
 
+const toTokens = (q) => norm(q).split(" ").filter(Boolean);
+
+/** Aranan şey aktüelde var mı: BİM aktüel ürünleri ve Şok broşüründe geçtiği sayfalar. */
+function aktuelMatches(tokens) {
+  const akt = items
+    .filter((it) => it.d)
+    .map((it) => [score(it, tokens), it])
+    .filter(([s]) => s > 0)
+    .sort((a, b) => a[1].ds.localeCompare(b[1].ds) || b[0] - a[0])
+    .map(([, it]) => it);
+  const pages = [];
+  for (const b of brochures) {
+    const hit = b.images.map((_, i) => i)
+      .filter((i) => b.pw[i] && tokens.every((t) => b.pw[i].some((w) => w.startsWith(t))));
+    if (hit.length) pages.push({ b, pages: hit });
+  }
+  return { akt, pages };
+}
+
+const uniq = (arr) => [...new Set(arr)];
+
 function search() {
   const q = $("#q").value.trim();
   $("#suggest").hidden = !!q;
   if (!q) { $("#results").innerHTML = ""; return; }
-  const tokens = norm(q).split(" ").filter(Boolean);
+  const tokens = toTokens(q);
+  // Aktüel ürünler normal listede değil, en üstteki "Aktüelde de var" kutusunda gösterilir.
   lastHits = items
+    .filter((it) => !it.d)
     .map((it) => [score(it, tokens), it])
     .filter(([s]) => s > 0)
     .sort((a, b) => b[0] - a[0] || a[1].u - b[1].u || a[1].p[0][1] - b[1].p[0][1])
     .map(([, it]) => it);
+  const { akt, pages } = aktuelMatches(tokens);
   shown = 0;
   $("#results").innerHTML = "";
+  if (akt.length || pages.length) {
+    const lines = [];
+    if (akt.length) lines.push(`<li><b>BİM aktüel:</b> ${uniq(akt.map((it) => it.d)).map(esc).join(", ")} <small>(${akt.length} ürün)</small></li>`);
+    for (const p of pages) lines.push(`<li><b>${esc(p.b.title || p.b.name)}:</b> ${p.pages.map((i) => i + 1).join(", ")}. sayfada geçiyor</li>`);
+    $("#results").innerHTML = `<div class="aktuel-alert"><p class="aa-title">📰 Aktüelde de var!</p><ul>${lines.join("")}</ul>
+      <button class="see-aktuel">Aktüelde göster</button></div>`;
+  }
   if (!lastHits.length) {
-    $("#results").innerHTML = items.length
-      ? `<div class="empty"><big>🤔</big>"${esc(q)}" bulunamadı.<br>Başka bir kelimeyle dene.</div>`
-      : `<div class="empty"><big>⏳</big>Fiyatlar yükleniyor…</div>`;
+    if (!akt.length && !pages.length) {
+      $("#results").innerHTML = items.length
+        ? `<div class="empty"><big>🤔</big>"${esc(q)}" bulunamadı.<br>Başka bir kelimeyle dene.</div>`
+        : `<div class="empty"><big>⏳</big>Fiyatlar yükleniyor…</div>`;
+    }
     return;
   }
   showMore();
@@ -234,7 +278,7 @@ const BROCHURE_COLORS = {
   "Çağdaş": ["#e65100", "#fff"],
   "Anadolu Tat": ["#2e7d32", "#fff"],
 };
-let aktuelLoaded = false;
+let aktuelShown = null; // ekranda hangi aramanın sonucu var (aynıysa yeniden çizme)
 
 // Uzun bir bölüm, sabit duran başlığından kapatılınca sayfa o bölümün başına döner.
 document.addEventListener("toggle", (e) => {
@@ -243,34 +287,60 @@ document.addEventListener("toggle", (e) => {
   const topBar = $(".top").offsetHeight;
   if (d.getBoundingClientRect().top < topBar) scrollTo(0, d.getBoundingClientRect().top + scrollY - topBar - 8);
 }, true);
-async function renderAktuel() {
-  if (aktuelLoaded) return;
+// Her bölüm açılır-kapanır; başlık kaydırırken üstte sabit durur, dokununca kapanır.
+const fold = (title, count, color, body, open = false) =>
+  `<details class="fold" ${open ? "open" : ""}><summary style="background:${color[0]};color:${color[1]}"><span>${esc(title)} <small>(${count})</small></span></summary>
+    <div class="fold-body">${body}</div></details>`;
+
+const pageImg = (b, i) =>
+  `<a href="${esc(b.images[i])}" target="_blank" rel="noopener"><img class="page" src="${esc(b.images[i])}" alt="${esc(b.name)} broşürü sayfa ${i + 1}" loading="lazy"></a>`;
+
+function brochureFold(b, pageIdx, open, note = "") {
+  const count = (b.date ? b.date + " · " : "") + (note || `${b.images.length} sayfa`);
+  return fold(b.title || `${b.name} fırsatları`, count, BROCHURE_COLORS[b.name] || ["#555", "#fff"],
+    pageIdx.map((i) => pageImg(b, i)).join("") +
+    (b.pdf ? `<a class="pdf" href="${esc(b.pdf)}" target="_blank" rel="noopener">📄 Broşürün aslını aç (PDF)</a>` : "") +
+    `<p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p>`, open);
+}
+
+function bimFolds(list, open) {
+  const byDate = {};
+  list.forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
+  return Object.keys(byDate).sort().map((k) =>
+    fold(k.split("|")[1], `${byDate[k].length} ürün`, BROCHURE_COLORS["BİM"], byDate[k].map(cardHtml).join(""), open)).join("");
+}
+
+function renderAktuel(force = false) {
+  const q = $("#aq").value.trim();
+  if (!force && aktuelShown === q) return;
   const el = $("#aktuel");
-  el.innerHTML = `<div class="empty"><big>⏳</big>Yükleniyor…</div>`;
-  try {
-    const data = await (await fetch("data/brochures.json", { cache: "no-cache" })).json();
-    // Her bölüm açılır-kapanır; başlık kaydırırken üstte sabit durur, dokununca kapanır.
-    const fold = (title, count, color, body) =>
-      `<details class="fold"><summary style="background:${color[0]};color:${color[1]}"><span>${esc(title)} <small>(${count})</small></span></summary>
-        <div class="fold-body">${body}</div></details>`;
+  if (!items.length) { el.innerHTML = `<div class="empty"><big>⏳</big>Yükleniyor…</div>`; return; }
+  aktuelShown = q;
+  const all = (pages) => pages.map((_, i) => i);
 
-    const byDate = {};
-    items.filter((it) => it.d).forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
-    const bim = Object.keys(byDate).sort().map((k) =>
-      fold(k.split("|")[1], `${byDate[k].length} ürün`, BROCHURE_COLORS["BİM"], byDate[k].map(cardHtml).join(""))).join("");
-
-    const brochures = data.brochures.map((b) => fold(b.title || `${b.name} fırsatları`, (b.date ? b.date + " · " : "") + `${b.images.length} sayfa`,
-      BROCHURE_COLORS[b.name] || ["#555", "#fff"],
-      b.images.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img class="page" src="${esc(u)}" alt="${esc(b.name)} broşürü" loading="lazy"></a>`).join("") +
-      (b.pdf ? `<a class="pdf" href="${esc(b.pdf)}" target="_blank" rel="noopener">📄 Broşürün aslını aç (PDF)</a>` : "") +
-      `<p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p>`)).join("");
-
+  if (!q) {
+    const bim = bimFolds(items.filter((it) => it.d), false);
     el.innerHTML = (bim ? `<h2 class="aktuel-title">BİM Aktüel</h2><p class="section-title">Tarihe dokun, o günün ürünleri açılsın.</p>${bim}` : "") +
-      `<h2 class="aktuel-title">Broşürler</h2><p class="section-title">Bu marketler fiyat listesi yayınlamıyor. Broşürü açmak için adına, büyütmek için resme dokun.</p>${brochures}`;
-    aktuelLoaded = items.length > 0;
-  } catch {
-    el.innerHTML = `<div class="empty"><big>📶</big>Yüklenemedi. İnternet bağlantını kontrol et.</div>`;
+      `<h2 class="aktuel-title">Broşürler</h2><p class="section-title">Broşürü açmak için adına, büyütmek için resme dokun.</p>` +
+      brochures.map((b) => brochureFold(b, all(b.images), false)).join("");
+    return;
   }
+
+  // Arama: sadece eşleşen BİM ürünleri ve Şok broşüründe ürünün geçtiği sayfalar, açık gelir.
+  const { akt, pages } = aktuelMatches(toTokens(q));
+  const unsearchable = brochures.filter((b) => !b.texts);
+  let html = "";
+  if (akt.length) html += `<h2 class="aktuel-title">BİM Aktüel</h2>${bimFolds(akt, true)}`;
+  if (pages.length) {
+    html += `<h2 class="aktuel-title">Broşürlerde geçiyor</h2>` + pages.map(({ b, pages: idx }) =>
+      brochureFold(b, idx, true, `${idx.map((i) => i + 1).join(", ")}. sayfa`)).join("");
+  }
+  if (!html) html = `<div class="empty"><big>🤔</big>Aktüelde "${esc(q)}" bulunamadı.</div>`;
+  if (unsearchable.length) {
+    html += `<h2 class="aktuel-title">Bunlara göz at</h2><p class="section-title">${unsearchable.map((b) => esc(b.name)).join(" ve ")} broşürleri resim olduğu için içinde arama yapılamıyor.</p>` +
+      unsearchable.map((b) => brochureFold(b, all(b.images), false)).join("");
+  }
+  el.innerHTML = html;
 }
 
 // ─── Arayüz olayları ───────────────────────────────────────────────────
@@ -313,8 +383,18 @@ function onCardClick(e) {
   changeQty(box.dataset.key, btn.dataset.act === "dec" ? -1 : 1, it, box.dataset.m);
   box.innerHTML = addControl(box.dataset.key);
 }
-$("#results").addEventListener("click", onCardClick);
+$("#results").addEventListener("click", (e) => {
+  if (e.target.matches(".see-aktuel")) {
+    $("#aq").value = $("#q").value;
+    return showTab("aktuel");
+  }
+  onCardClick(e);
+});
 $("#aktuel").addEventListener("click", onCardClick);
+
+let aDebounce;
+$("#aq").addEventListener("input", () => { clearTimeout(aDebounce); aDebounce = setTimeout(renderAktuel, 300); });
+$("#aktuelForm").addEventListener("submit", (e) => { e.preventDefault(); renderAktuel(); $("#aq").blur(); });
 
 $("#cart").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-act]");

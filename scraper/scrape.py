@@ -355,6 +355,10 @@ def scrape_sok(out_dir):
                 pdf_path.write_bytes(r.read())
             subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=70", "-scale-to", "1100",
                             str(pdf_path), str(sok_dir / slug)], check=True)
+            # Sayfa metinleri: uygulamada "aradığın ürün Şok broşürünün 3. sayfasında" diyebilmek için.
+            text = subprocess.run(["pdftotext", "-enc", "UTF-8", str(pdf_path), "-"],
+                                  check=True, capture_output=True, text=True, encoding="utf-8").stdout
+            entry["texts"] = [" ".join(re.sub(r"/(\w)\.latn_\w+", r"\1", t).split()) for t in text.split("\f")]
             pdf_path.unlink()
             pages = sorted(sok_dir.glob(f"{slug}-*.jpg"), key=lambda p: int(p.stem.rsplit("-", 1)[1]))
             entry["images"] = [f"data/sok/{p.name}" for p in pages]

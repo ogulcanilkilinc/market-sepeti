@@ -150,6 +150,23 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 .wa { background: #25d366; color: #0b3d1f; }
 .clear { background: #fff; color: var(--red); border: 2px solid var(--red); }
 
+/* Ana aramada "Aktüelde de var" kutusu */
+.aktuel-alert {
+  background: #fff8e1; border: 2px solid #f0b400; border-radius: 16px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.aktuel-alert .aa-title { margin: 0 0 6px; font-size: 20px; font-weight: 800; }
+.aktuel-alert ul { margin: 0 0 10px; padding-left: 20px; }
+.aktuel-alert li { margin-bottom: 4px; }
+.aktuel-alert small { color: var(--muted); }
+.see-aktuel {
+  width: 100%; min-height: 52px; border: 0; border-radius: 12px;
+  background: #d7141a; color: #fff; font-weight: 800; font-size: 18px;
+}
+
+/* Aktüel sekmesindeki arama kutusu kaydırınca kaybolur; üstte bölüm başlıkları sabit kalır */
+.search.search-plain { position: static; }
+
 /* Aktüel: açılır-kapanır bölümler, başlık kaydırırken üstte sabit */
 .aktuel-title { font-size: 22px; margin: 18px 0 2px; }
 .aktuel-title:first-child { margin-top: 6px; }
