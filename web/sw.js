@@ -2,7 +2,7 @@
 // Ayrıca uygulama kapalıyken günde ~1 kez takip edilen ürünlerin fiyatına bakıp bildirim gösterir.
 importScripts("common.js"); // MARKETS, loadAlerts, saveAlerts, notifyNewHits, STATE_CACHE
 
-const CACHE = "market-sepeti-v3";
+const CACHE = "market-sepeti-v4";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(

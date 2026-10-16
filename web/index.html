@@ -3,17 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Market Sepeti</title>
-  <meta name="description" content="Ankara marketlerinde fiyat karşılaştır, alışveriş listeni hazırla.">
-  <meta name="theme-color" content="#1f7a4d">
+  <title>HesaplıSepet</title>
+  <meta name="description" content="Karşılaştır, listele, tasarruf et. Ankara marketlerinde fiyat karşılaştırma ve alışveriş listesi.">
+  <meta name="theme-color" content="#FFF8ED">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="top">
-    <h1>🛒 Market Sepeti</h1>
+    <h1 class="brand"><img src="logo.svg" alt=""><span class="wordmark"><b>Hesaplı</b><i>Sepet</i></span></h1>
     <button id="installBtn" class="install" hidden>Ana ekrana ekle</button>
   </header>
 
@@ -23,7 +26,7 @@
       <form id="searchForm" class="search" role="search" autocomplete="off">
         <input id="q" type="search" inputmode="search" enterkeyhint="search"
                placeholder="Ne alacaksın?" aria-label="Ürün adı">
-        <button type="button" id="micBtn" class="mic" aria-label="Sesle söyle" hidden>🎤</button>
+        <button type="button" id="micBtn" class="mic" aria-label="Sesle söyle" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       </form>
       <p id="updated" class="updated"></p>
       <div id="suggest" class="suggest"></div>
@@ -51,10 +54,14 @@
   </main>
 
   <nav class="bottom">
-    <button data-tab="search" class="active"><span>🔍</span>Ara</button>
-    <button data-tab="cart"><span>🧺</span>Sepetim<b id="cartCount" hidden></b></button>
-    <button data-tab="aktuel"><span>📰</span>Aktüel</button>
-    <button data-tab="takip"><span>🔔</span>Takip<b id="takipCount" hidden></b></button>
+    <button data-tab="search" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Ara</button>
+    <button data-tab="cart">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 10.5h10.2L20 7.5H6.4"/><circle cx="9.5" cy="19" r="1.6"/><circle cx="16.5" cy="19" r="1.6"/></svg>Sepetim<b id="cartCount" hidden></b></button>
+    <button data-tab="aktuel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Aktüel</button>
+    <button data-tab="takip">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>Takip<b id="takipCount" hidden></b></button>
   </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

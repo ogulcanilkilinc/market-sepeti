@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="HesaplıSepet">
+  <!-- yaprak -->
+  <g transform="rotate(-32 80 23)">
+    <path d="M60 23 Q80 7 100 23 Q80 39 60 23 Z" fill="#5EA95C"/>
+    <path d="M63 23 H96" stroke="#145C43" stroke-width="2.4" stroke-linecap="round" opacity=".5"/>
+  </g>
+  <!-- sepet (turuncu iç) -->
+  <path d="M32 44 H102 L92 80 H42 Z" fill="#FF8A3D"/>
+  <path d="M38 52 H95 L93 59 H40 Z" fill="#FFB27D" opacity=".7"/>
+  <!-- araba gövdesi -->
+  <path d="M10 24 H24 L42 80 H92 L102 44 H30" fill="none" stroke="#145C43" stroke-width="9"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M42 80 L46 92 H94" fill="none" stroke="#145C43" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- tekerlekler -->
+  <circle cx="52" cy="104" r="7" fill="#FFF8ED" stroke="#145C43" stroke-width="6"/>
+  <circle cx="86" cy="104" r="7" fill="#FFF8ED" stroke="#145C43" stroke-width="6"/>
+</svg>

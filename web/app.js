@@ -1,8 +1,9 @@
 "use strict";
 // MARKETS, tl, norm, nameKey ve fiyat takibi fonksiyonları common.js içinde.
 
-const SUGGESTIONS = ["Süt", "Ekmek", "Yumurta", "Beyaz peynir", "Yoğurt", "Domates", "Patates", "Soğan",
-  "Ayçiçek yağı", "Zeytinyağı", "Çay", "Şeker", "Un", "Pirinç", "Makarna", "Tavuk", "Kıyma", "Deterjan"];
+const SUGGESTIONS = [["🥛", "Süt"], ["🍞", "Ekmek"], ["🥚", "Yumurta"], ["🧀", "Beyaz peynir"], ["🥣", "Yoğurt"],
+  ["🍅", "Domates"], ["🥔", "Patates"], ["🧅", "Soğan"], ["🌻", "Ayçiçek yağı"], ["🫒", "Zeytinyağı"], ["🍵", "Çay"],
+  ["🍬", "Şeker"], ["🌾", "Un"], ["🍚", "Pirinç"], ["🍝", "Makarna"], ["🍗", "Tavuk"], ["🥩", "Kıyma"], ["🧴", "Deterjan"]];
 const PAGE = 30;
 
 const $ = (s) => document.querySelector(s);
@@ -250,13 +251,13 @@ function renderCart() {
     </section>`;
   }).join("");
   el.innerHTML = `<p class="section-title">Aldıklarının yanındaki kutuya dokun ✓</p>${html}
-    <div class="total"><span>Toplam</span><span>${tl(grand)}</span></div>
+    <div class="total"><div><small>Tahmini toplam</small><strong>${tl(grand)}</strong></div><span class="piggy" aria-hidden="true">🐷</span></div>
     <a class="big-btn wa" href="https://wa.me/?text=${encodeURIComponent(whatsappText(groups, grand))}" target="_blank" rel="noopener">💬 WhatsApp'la gönder</a>
     <button class="big-btn clear" data-act="clear">🗑️ Sepeti boşalt</button>`;
 }
 
 function whatsappText(groups, grand) {
-  const lines = ["🛒 *Alışveriş listem*", ""];
+  const lines = ["🛒 *HesaplıSepet – Alışveriş listem*", ""];
   Object.keys(MARKETS).filter((m) => groups[m]).forEach((m) => {
     lines.push(`*${MARKETS[m].name}*`);
     groups[m].forEach((c) => lines.push(`${c.done ? "✅" : "▫️"} ${c.n}${c.qty > 1 ? " × " + c.qty : ""} — ${tl(c.price * c.qty)}`));
@@ -439,7 +440,7 @@ async function updateTakip(notify) {
 function permissionNote() {
   if (!alerts.length) return "";
   if (!("Notification" in window)) return `<p class="note">Bu tarayıcı bildirim göstermiyor. İndirimleri bu sayfadan takip edebilirsin.</p>`;
-  if (Notification.permission === "denied") return `<p class="note warn">Bildirimler kapalı. Telefonun Ayarlar → Uygulamalar → Chrome (ya da Market Sepeti) → Bildirimler kısmından açabilirsin.</p>`;
+  if (Notification.permission === "denied") return `<p class="note warn">Bildirimler kapalı. Telefonun Ayarlar → Uygulamalar → Chrome (ya da HesaplıSepet) → Bildirimler kısmından açabilirsin.</p>`;
   if (Notification.permission === "default") return `<button class="big-btn perm" data-perm>🔔 Bildirimlere izin ver</button>`;
   if (!bgCheckOk) return `<p class="note">Uygulama kapalıyken de haber alman için uygulamayı ana ekrana ekle. Uygulamayı her açtığında da kontrol edilir.</p>`;
   return `<p class="note ok">✓ Bildirimler açık. Her gün kontrol ediliyor.</p>`;
@@ -522,10 +523,12 @@ let debounce;
 $("#q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(search, 250); });
 $("#searchForm").addEventListener("submit", (e) => { e.preventDefault(); search(); $("#q").blur(); });
 
-$("#suggest").innerHTML = `<h2>Sık arananlar</h2><div class="chips">${SUGGESTIONS.map((s) => `<button class="chip">${s}</button>`).join("")}</div>`;
+$("#suggest").innerHTML = `<p class="tagline"><b>Karşılaştır, listele, tasarruf et.</b></p><h2>Sık arananlar</h2>
+  <div class="chips">${SUGGESTIONS.map(([icon, s]) => `<button class="chip" data-q="${s}"><span aria-hidden="true">${icon}</span>${s}</button>`).join("")}</div>`;
 $("#suggest").addEventListener("click", (e) => {
-  if (!e.target.matches(".chip")) return;
-  $("#q").value = e.target.textContent;
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  $("#q").value = chip.dataset.q;
   search();
 });
 
