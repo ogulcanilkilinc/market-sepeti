@@ -35,7 +35,11 @@ MF_MARKETS = {"a101", "bim", "sok", "migros", "carrefour", "tarim_kredi"}
 MF_PAGE_SIZE = 25  # sunucu 25'in üstünü sessizce 25'e indiriyor
 YUNUS = "https://yunusonline.com"
 
-UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+MF_DELAY = 1.5  # sn; marketfiyati hızlı isteklerde bağlantıyı kesiyor, nazik olalım
+# Annemin ihtiyacı olmayan kategoriler (istek sayısını azaltır).
+MF_SKIP = {"Elektronik ve Teknoloji", "Giyim ve Tekstil", "Oyuncak Hobi Ve Kırtasiye", "Oto ve Yapı Market",
+           "Makyaj", "Parfüm ve Deodorant"}
 TR_TZ = timezone(timedelta(hours=3))
 
 
@@ -62,7 +66,7 @@ def http(url, data=None, headers=None, tries=4):
         except (OSError, http_client.HTTPException):  # URLError, zaman aşımı, bağlantı kopması
             if attempt == tries - 1:
                 raise
-        time.sleep(5 * (attempt + 1))
+        time.sleep(30 * (attempt + 1))
 
 
 # ─── marketfiyati.org.tr ────────────────────────────────────────────────
@@ -89,8 +93,8 @@ def scrape_marketfiyati():
         raise RuntimeError("marketfiyati: yakında şube bulunamadı")
 
     cats = json.loads(http(MF_API + "/api/v1/info/categories", headers=MF_HEADERS))["content"]
-    subs = [sub for cat in cats for sub in cat["subcategories"]]
-    products, failed = {}, []
+    subs = [sub for cat in cats for sub in cat["subcategories"] if sub not in MF_SKIP]
+    products, failed, streak = {}, [], 0
     for sub in subs:
         page, seen = 0, 0
         try:
@@ -106,15 +110,19 @@ def scrape_marketfiyati():
                         products[p["id"]] = item
                 seen += len(content)
                 total = res.get("numberOfFound") or 0
-                time.sleep(0.4)
+                time.sleep(MF_DELAY)
                 if not content or seen >= total:
                     break
                 page += 1
             log(f"  {sub}: {seen}")
+            streak = 0
         except Exception as e:  # noqa: BLE001 - bir kategori düşerse diğerleri devam etsin
             failed.append(sub)
             log(f"  {sub}: HATA {e!r}")
-            time.sleep(10)
+            streak += 1
+            if streak >= 3:  # art arda düşüyorsa engellenmişiz, boşuna uğraşma
+                raise RuntimeError("marketfiyati: art arda 3 kategori alınamadı") from e
+            time.sleep(60)
     if len(failed) > len(subs) // 4:
         raise RuntimeError(f"marketfiyati: {len(failed)}/{len(subs)} kategori alınamadı")
     return list(products.values())
@@ -195,14 +203,19 @@ def yunus_category(path, products):
 
 
 def tr_title(s):
-    """'PINAR SÜT 1 LT' -> 'Pınar Süt 1 Lt' (Türkçe büyük/küçük harf kuralıyla)."""
+    """'PINAR SÜT 1 LT' -> 'Pınar Süt 1 Lt'.
+
+    Ad Türkçe harf içeriyorsa (İ, Ş, Ğ...) 'I' gerçekten 'ı'dır; içermiyorsa
+    ('PEYNIR' gibi) site harfleri ASCII'ye çevirmiştir ve 'I' aslında 'i'dir.
+    """
+    s = s.strip()
+    turkish = any(ch in s for ch in "İŞĞÜÖÇ")
+
     def word(w):
-        if not w:
-            return w
         first, rest = w[0], w[1:]
-        rest = rest.replace("I", "ı").replace("İ", "i").lower()
+        rest = rest.replace("İ", "i").replace("I", "ı" if turkish else "i").lower()
         return first + rest
-    return " ".join(word(w) for w in s.strip().split())
+    return " ".join(word(w) for w in s.split())
 
 
 UNIT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|gr|g|lt|l|ml|cl)\b", re.I)
@@ -227,6 +240,62 @@ def unit_price(name, price):
     factor = {"kg": 1, "gr": 1000, "g": 1000, "lt": 1, "l": 1, "ml": 1000, "cl": 100}[unit]
     base = "Kg" if unit in ("kg", "gr", "g") else "Lt"
     return "{:.2f} ₺/{}".format(price / qty * factor, base).replace(".", ",")
+
+
+# ─── BİM aktüel ─────────────────────────────────────────────────────────
+
+BIM_AKTUEL = "https://www.bim.com.tr/Categories/100/aktuel-urunler.aspx"
+TR_MONTHS = ["ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz",
+             "ağustos", "eylül", "ekim", "kasım", "aralık"]
+
+
+def aktuel_dates(label, today):
+    """'16 Ekim Cuma' -> (16 Eki, 16 Eki); '10-16 Ekim' -> (10 Eki, 16 Eki)."""
+    m = re.match(r"(\d+)(?:-(\d+))?\s+(\w+)", label.strip())
+    if not m or m.group(3).lower() not in TR_MONTHS:
+        return None, None
+    month = TR_MONTHS.index(m.group(3).lower()) + 1
+    year = today.year + (1 if month < today.month - 6 else 0)  # aralık -> ocak geçişi
+    try:
+        start = datetime(year, month, int(m.group(1))).date()
+        end = datetime(year, month, int(m.group(2) or m.group(1))).date()
+    except ValueError:
+        return None, None
+    return start, end
+
+
+def scrape_bim_aktuel():
+    today = datetime.now(TR_TZ).date()
+    tabs = re.findall(r'aktuel-urunler\.aspx\?Bim_AktuelTarihKey=(\d+)">\s*<span class="text">([^<]+)</span>',
+                      http(BIM_AKTUEL), re.I)
+    items = []
+    for key, label in dict(tabs).items():
+        start, end = aktuel_dates(label, today)
+        # Son 4 gün ve önümüzdeki 10 gün içindeki aktüeller (eskilerde stok genelde bitmiş olur)
+        if not start or not (end >= today - timedelta(days=4) and start <= today + timedelta(days=10)):
+            continue
+        page = http(f"{BIM_AKTUEL}?Bim_AktuelTarihKey={key}")
+        for block in page.split('<div class="product col')[1:]:
+            img = re.search(r'<img src="([^"]+)"', block)
+            brand = re.search(r'<h2 class="subTitle">([^<]*)</h2>', block)
+            title = re.search(r'<h2 class="title">\s*([^<]+?)\s*</h2>', block)
+            whole = re.search(r'class="text quantify">([\d.]+),?</div>', block)
+            kurus = re.search(r'<span class="number">(\d+)</span>', block)
+            if not (title and whole):
+                continue
+            price = float(whole.group(1).replace(".", "") + "." + (kurus.group(1) if kurus else "00"))
+            brand_s = html.unescape(brand.group(1)).strip() if brand else ""
+            title_s = html.unescape(title.group(1)).strip()
+            if brand_s and title_s.upper().startswith(brand_s.upper()):  # "CREALITY CREALITY ..." tekrarı
+                brand_s = ""
+            name = tr_title(f"{brand_s} {title_s}")
+            items.append({
+                "n": name, "s": "", "i": img.group(1) if img else "", "c": "", "d": label.strip(), "ds": start.isoformat(),
+                "p": [["bim", price, None, f"Aktüel · {label.strip()}"]],
+            })
+        time.sleep(0.5)
+    log(f"bim aktüel: {len(items)} ürün")
+    return items
 
 
 # ─── Broşürler ──────────────────────────────────────────────────────────
@@ -277,7 +346,7 @@ def main():
     ap.add_argument("--out", default="web/data")
     ap.add_argument("--previous", default="", help="bir önceki products.json (yedek için)")
     ap.add_argument("--previous-brochures", default="")
-    ap.add_argument("--only", default="", help="test için: mf,yunus,brochures")
+    ap.add_argument("--only", default="", help="test için: mf,yunus,aktuel,brochures")
     args = ap.parse_args()
 
     prev = load_previous(args.previous) if args.previous else {}
@@ -293,6 +362,8 @@ def main():
         sources["mf"], ok["mf"] = run("marketfiyati", scrape_marketfiyati, prev_src.get("mf", []))
     if want("yunus"):
         sources["yunus"], ok["yunus"] = run("yunus", scrape_yunus, prev_src.get("yunus", []))
+    if want("aktuel"):
+        sources["aktuel"], ok["aktuel"] = run("BİM aktüel", scrape_bim_aktuel, prev_src.get("aktuel", []))
 
     brochures = []
     if want("brochures"):

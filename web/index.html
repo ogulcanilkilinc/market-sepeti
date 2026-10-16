@@ -22,7 +22,7 @@
     <section id="tab-search" class="tab active" aria-label="Ürün ara">
       <form id="searchForm" class="search" role="search" autocomplete="off">
         <input id="q" type="search" inputmode="search" enterkeyhint="search"
-               placeholder="Ne alacaksın? (örn. süt)" aria-label="Ürün adı">
+               placeholder="Ne alacaksın?" aria-label="Ürün adı">
         <button type="button" id="micBtn" class="mic" aria-label="Sesle söyle" hidden>🎤</button>
       </form>
       <p id="updated" class="updated"></p>
@@ -35,16 +35,16 @@
       <div id="cart"></div>
     </section>
 
-    <!-- BROŞÜRLER -->
-    <section id="tab-brochures" class="tab" aria-label="Broşürler">
-      <div id="brochures"></div>
+    <!-- AKTÜEL -->
+    <section id="tab-aktuel" class="tab" aria-label="Aktüel ve broşürler">
+      <div id="aktuel"></div>
     </section>
   </main>
 
   <nav class="bottom">
     <button data-tab="search" class="active"><span>🔍</span>Ara</button>
     <button data-tab="cart"><span>🧺</span>Sepetim<b id="cartCount" hidden></b></button>
-    <button data-tab="brochures"><span>📰</span>Broşürler</button>
+    <button data-tab="aktuel"><span>📰</span>Aktüel</button>
   </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

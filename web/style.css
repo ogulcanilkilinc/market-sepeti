@@ -89,10 +89,10 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 }
 .offer.best .price { color: var(--green-dark); }
 .badge {
-  display: inline-block; min-width: 92px; text-align: center;
-  padding: 6px 8px; border-radius: 8px; font-weight: 800; font-size: 16px; color: #fff;
+  display: inline-block; min-width: 76px; text-align: center;
+  padding: 6px 6px; border-radius: 8px; font-weight: 800; font-size: 15px; color: #fff;
 }
-.price { font-weight: 800; font-size: 22px; }
+.price { font-weight: 800; font-size: 21px; white-space: nowrap; }
 .unit { display: block; font-weight: 400; font-size: 14px; color: var(--muted); }
 .tag {
   display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-top: 2px;
@@ -106,10 +106,10 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 }
 .stepper { display: flex; align-items: center; gap: 4px; }
 .stepper button {
-  width: 46px; height: 52px; border: 2px solid var(--green); border-radius: 12px;
+  width: 42px; height: 50px; border: 2px solid var(--green); border-radius: 12px;
   background: #fff; color: var(--green-dark); font-size: 26px; font-weight: 800; line-height: 1;
 }
-.stepper output { min-width: 28px; text-align: center; font-weight: 800; font-size: 22px; }
+.stepper output { min-width: 24px; text-align: center; font-weight: 800; font-size: 22px; }
 
 .more {
   display: block; width: 100%; min-height: 56px; margin: 8px 0 20px;
@@ -148,6 +148,18 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 }
 .wa { background: #25d366; color: #0b3d1f; }
 .clear { background: #fff; color: var(--red); border: 2px solid var(--red); }
+
+/* Aktüel */
+.aktuel-title { font-size: 22px; margin: 6px 0 10px; }
+.aktuel-day { margin-bottom: 10px; }
+.aktuel-day summary {
+  list-style: none; cursor: pointer;
+  background: #d7141a; color: #fff; border-radius: 12px;
+  padding: 14px 16px; font-size: 20px; font-weight: 800; margin-bottom: 10px;
+}
+.aktuel-day summary::after { content: " ▾"; }
+.aktuel-day[open] summary::after { content: " ▴"; }
+.aktuel-day summary small { font-weight: 400; font-size: 16px; }
 
 /* Broşürler */
 .brochure { margin-bottom: 24px; }

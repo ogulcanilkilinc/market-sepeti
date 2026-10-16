@@ -48,8 +48,12 @@ async function loadData() {
 // ─── Arama ─────────────────────────────────────────────────────────────
 let lastHits = [], shown = 0;
 
+// "süt" aranınca çilekli süt değil düz süt öne çıksın: bu kelimeler aranmadıysa ürün biraz geriye düşer.
+const FLAVORS = new Set(["aromali", "cilekli", "kakaolu", "muzlu", "cikolatali", "vanilyali", "karamelli", "ballı", "meyveli", "cocuk", "bebek"].map(norm));
+
 function score(it, tokens) {
   let total = 0;
+  for (const w of it.w) if (FLAVORS.has(w) && !tokens.includes(w)) total -= 3;
   for (const t of tokens) {
     let best = 0;
     it.w.forEach((w, k) => {
@@ -60,7 +64,7 @@ function score(it, tokens) {
     if (!best) return 0;
     total += best;
   }
-  return total;
+  return Math.max(total, 1);
 }
 
 function search() {
@@ -163,7 +167,7 @@ function renderCart() {
       <h2 style="background:${mk.color};color:${mk.text || "#fff"}"><span>${mk.name}</span><span>${tl(sub)}</span></h2>
       ${groups[m].map((c) => `<div class="cart-item ${c.done ? "done" : ""}" data-key="${esc(c.key)}">
         <button class="check" data-act="toggle" aria-label="Aldım">${c.done ? "✓" : ""}</button>
-        <div><div class="ci-name">${esc(c.n)}</div><div class="ci-sub">${c.qty} × ${tl(c.price)} = <b>${tl(c.qty * c.price)}</b></div></div>
+        <div><div class="ci-name">${esc(c.n)}</div><div class="ci-sub">${c.qty} adet × ${tl(c.price)}</div></div>
         <div class="stepper"><button data-act="dec" aria-label="Azalt">−</button><output>${c.qty}</output><button data-act="inc" aria-label="Arttır">+</button></div>
       </div>`).join("")}
     </section>`;
@@ -185,21 +189,31 @@ function whatsappText(groups, grand) {
   return lines.join("\n");
 }
 
-// ─── Broşürler ─────────────────────────────────────────────────────────
-let brochuresLoaded = false;
-async function renderBrochures() {
-  if (brochuresLoaded) return;
-  const el = $("#brochures");
+// ─── Aktüel ve broşürler ───────────────────────────────────────────────
+let aktuelLoaded = false;
+async function renderAktuel() {
+  if (aktuelLoaded) return;
+  const el = $("#aktuel");
   el.innerHTML = `<div class="empty"><big>⏳</big>Yükleniyor…</div>`;
   try {
     const data = await (await fetch("data/brochures.json", { cache: "no-cache" })).json();
-    el.innerHTML = `<p class="section-title">Bu marketler fiyat listesi yayınlamıyor, haftalık fırsatlarını buradan görebilirsin. Büyütmek için resme dokun.</p>` +
+    // BİM aktüel: tarih tarih, bugüne en yakın olan açık gelir.
+    const byDate = {};
+    items.filter((it) => it.d).forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
+    const today = new Date().toLocaleDateString("sv"); // yerel tarih, YYYY-AA-GG
+    const keys = Object.keys(byDate).sort();
+    const openKey = keys.filter((k) => k.slice(0, 10) <= today).pop() || keys[0];
+    const bim = keys.length ? `<h2 class="aktuel-title">BİM Aktüel</h2>` + keys.map((k) =>
+      `<details class="aktuel-day" ${k === openKey ? "open" : ""}><summary>${esc(k.split("|")[1])} <small>(${byDate[k].length} ürün)</small></summary>
+        ${byDate[k].map(cardHtml).join("")}</details>`).join("") : "";
+    el.innerHTML = bim +
+      `<p class="section-title">Aşağıdaki marketler fiyat listesi yayınlamıyor, haftalık fırsatlarını buradan görebilirsin. Büyütmek için resme dokun.</p>` +
       data.brochures.map((b) => `<section class="brochure"><h2>${esc(b.name)} fırsatları</h2>
         ${b.images.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(b.name)} broşürü" loading="lazy"></a>`).join("")}
         <p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p></section>`).join("");
-    brochuresLoaded = true;
+    aktuelLoaded = items.length > 0;
   } catch {
-    el.innerHTML = `<div class="empty"><big>📶</big>Broşürler yüklenemedi. İnternet bağlantını kontrol et.</div>`;
+    el.innerHTML = `<div class="empty"><big>📶</big>Yüklenemedi. İnternet bağlantını kontrol et.</div>`;
   }
 }
 
@@ -208,7 +222,7 @@ function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + name));
   document.querySelectorAll(".bottom button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   if (name === "cart") renderCart();
-  if (name === "brochures") renderBrochures();
+  if (name === "aktuel") renderAktuel();
   scrollTo(0, 0);
 }
 
@@ -234,7 +248,7 @@ $("#suggest").addEventListener("click", (e) => {
   search();
 });
 
-$("#results").addEventListener("click", (e) => {
+function onCardClick(e) {
   if (e.target.matches(".more")) return showMore();
   const btn = e.target.closest("[data-act]");
   if (!btn) return;
@@ -242,7 +256,9 @@ $("#results").addEventListener("click", (e) => {
   const it = items[+box.dataset.idx];
   changeQty(box.dataset.key, btn.dataset.act === "dec" ? -1 : 1, it, box.dataset.m);
   box.innerHTML = addControl(box.dataset.key);
-});
+}
+$("#results").addEventListener("click", onCardClick);
+$("#aktuel").addEventListener("click", onCardClick);
 
 $("#cart").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-act]");
