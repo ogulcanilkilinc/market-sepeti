@@ -43,7 +43,7 @@ async function saveAlerts(alerts) {
 const UNIT_WORDS = new Set(["lt", "g", "kg", "ml", "cl", "adet", "x", "li", "lu"]);
 
 /**
- * Her takip için tüm marketlerdeki ve BİM aktüeldeki en ucuz teklifi bulur.
+ * Her takip için tüm marketlerdeki ve aktüellerdeki (BİM, A101) en ucuz teklifi bulur.
  * Aynı ürün (aynı ad + gramaj) her markette aranır; aktüelde ise ürün adındaki
  * kelimelerin hepsi geçiyorsa (ör. "Sek Süt" -> "Sek Süt 6x1 Lt") sayılır.
  */
@@ -79,7 +79,7 @@ async function notifyNewHits(registration, alerts, sources) {
       continue;
     }
     if (a.notified && best.price >= a.notified.price) continue; // bu fiyatı (ya da daha ucuzunu) zaten bildirdik
-    const where = best.d ? `BİM aktüel (${best.d})` : MARKETS[best.m].name;
+    const where = best.d ? `${MARKETS[best.m].name} aktüel (${best.d})` : MARKETS[best.m].name;
     try {
       await registration.showNotification(`🔔 ${a.n} indirimde!`, {
         body: `${where}: ${tl(best.price)} (senin hedefin ${tl(a.target)})${best.d ? "\n" + best.n : ""}`,

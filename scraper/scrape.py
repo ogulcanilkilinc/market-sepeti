@@ -15,6 +15,7 @@ Sadece standart kütüphane kullanılır.
 """
 
 import argparse
+import base64
 import html
 import http.client as http_client
 import json
@@ -300,6 +301,76 @@ def scrape_bim_aktuel():
     return items
 
 
+# ─── A101 aktüel ────────────────────────────────────────────────────────
+# www.a101.com.tr bot korumalı; ama sitenin kendi kullandığı API (rio.a101.com.tr) açık.
+# Kampanya kodları "Aldın Aldın" ve "Haftanın Yıldızları" sayfalarından (?value=Z110&field=promotionCode).
+A101_SEARCH = "https://rio.a101.com.tr/dbmk89vnr/CALL/Store/search/VS032"
+A101_PROMOS = {"Z110": "Aldın Aldın", "Z100": "Haftanın Yıldızları"}  # Z120 (eski aktüel stokları) alınmaz
+A101_HEADERS = {"Accept": "application/json", "Origin": "https://www.a101.com.tr", "Referer": "https://www.a101.com.tr/"}
+
+
+def tr_range(start, end):
+    """(15 Eki, 21 Eki) -> '15-21 Ekim'; (28 Eki, 3 Kas) -> '28 Ekim - 3 Kasım'."""
+    month = lambda d: TR_MONTHS[d.month - 1].capitalize()  # noqa: E731
+    if start == end:
+        return f"{start.day} {month(start)}"
+    if start.month == end.month:
+        return f"{start.day}-{end.day} {month(end)}"
+    return f"{start.day} {month(start)} - {end.day} {month(end)}"
+
+
+def a101_search(code, start):
+    data = {"channel": "SLOT", "filters": [{"field": "promotionCode", "value": code}], "from": start, "limit": 99}
+    encoded = base64.b64encode(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).decode()
+    query = urllib.parse.urlencode({"__culture": "tr-TR", "__platform": "web", "data": encoded, "__isbase64": "true"})
+    return json.loads(http(f"{A101_SEARCH}?{query}", headers=A101_HEADERS))
+
+
+def scrape_a101_aktuel():
+    today = datetime.now(TR_TZ).date()
+    to_date = lambda ms: datetime.fromtimestamp(ms / 1000, TR_TZ).date()  # noqa: E731
+    items = []
+    for code, title in A101_PROMOS.items():
+        start, found = 0, []
+        while True:
+            res = a101_search(code, start)
+            for r in res.get("results") or []:
+                promo, price, attrs = r.get("promotion") or {}, r.get("price") or {}, r.get("attributes") or {}
+                if promo.get("code") != code or not (promo.get("startDate") and promo.get("endDate")):
+                    continue
+                begin, end = to_date(promo["startDate"]), to_date(promo["endDate"])
+                if end < today or begin > today + timedelta(days=10):
+                    continue
+                value = (price.get("discounted") or price.get("normal") or 0) / 100
+                if not value or not attrs.get("name"):
+                    continue
+                found.append((begin, end, value, r))
+            start += 99
+            if start >= (res.get("total") or 0) or not res.get("results"):
+                break
+            time.sleep(0.5)
+        # Aylarca süren birkaç ürün ayrı küçük gruplar oluşturmasın: o haftanın ana grubuna katılsın.
+        weekly = [(b, e) for b, e, _, _ in found if (e - b).days <= 10]
+        main = max(set(weekly), key=weekly.count) if weekly else None
+        for begin, end, value, r in found:
+            if main and (end - begin).days > 10:
+                begin, end = main
+            attrs, rate = r["attributes"], (r.get("price") or {}).get("discountRate")
+            label = f"{title} · {tr_range(begin, end)}"
+            img = next((i["url"] for i in r.get("images", []) if i.get("imageType") == "product"), "")
+            cats = r.get("categories") or [{}]
+            items.append({
+                "n": attrs["name"].strip(), "s": "", "i": img, "c": cats[-1].get("name", ""),
+                "d": label, "ds": begin.isoformat(),
+                "p": [["a101", round(value, 2), unit_price(attrs["name"], value),
+                       label + (f" · %{rate} indirim" if rate else "")]],
+            })
+    log(f"a101 aktüel: {len(items)} ürün")
+    if not items:
+        raise RuntimeError("a101: güncel aktüel ürün bulunamadı")
+    return items
+
+
 # ─── Broşürler ──────────────────────────────────────────────────────────
 
 def scrape_cagdas():
@@ -444,6 +515,7 @@ def main():
             collect("yunus", "yunus", scrape_yunus)
     if want("aktuel"):
         collect("aktuel", "BİM aktüel", scrape_bim_aktuel)
+        collect("a101_aktuel", "A101 aktüel", scrape_a101_aktuel)
 
     brochures = []
     if want("brochures"):

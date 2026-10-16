@@ -109,7 +109,7 @@ function score(it, tokens) {
 
 const toTokens = (q) => norm(q).split(" ").filter(Boolean);
 
-/** Aranan şey aktüelde var mı: BİM aktüel ürünleri ve Şok broşüründe geçtiği sayfalar. */
+/** Aranan şey aktüelde var mı: BİM / A101 aktüel ürünleri ve Şok broşüründe geçtiği sayfalar. */
 function aktuelMatches(tokens) {
   const akt = items
     .filter((it) => it.d)
@@ -145,7 +145,10 @@ function search() {
   $("#results").innerHTML = "";
   if (akt.length || pages.length) {
     const lines = [];
-    if (akt.length) lines.push(`<li><b>BİM aktüel:</b> ${uniq(akt.map((it) => it.d)).map(esc).join(", ")} <small>(${akt.length} ürün)</small></li>`);
+    for (const m of ["bim", "a101"]) {
+      const list = akt.filter((it) => it.p[0][0] === m);
+      if (list.length) lines.push(`<li><b>${MARKETS[m].name} aktüel:</b> ${uniq(list.map((it) => it.d)).map(esc).join(", ")} <small>(${list.length} ürün)</small></li>`);
+    }
     for (const p of pages) lines.push(`<li><b>${esc(p.b.title || p.b.name)}:</b> ${p.pages.map((i) => i + 1).join(", ")}. sayfada geçiyor</li>`);
     $("#results").innerHTML = `<div class="aktuel-alert"><p class="aa-title">📰 Aktüelde de var!</p><ul>${lines.join("")}</ul>
       <button class="see-aktuel">Aktüelde göster</button></div>`;
@@ -265,7 +268,6 @@ function whatsappText(groups, grand) {
 
 // ─── Aktüel ve broşürler ───────────────────────────────────────────────
 const BROCHURE_COLORS = {
-  "BİM": ["#d7141a", "#fff"],
   "Şok": ["#e0a800", "#1c1c1c"],
   "Çağdaş": ["#e65100", "#fff"],
   "Anadolu Tat": ["#2e7d32", "#fff"],
@@ -295,11 +297,17 @@ function brochureFold(b, pageIdx, open, note = "") {
     `<p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p>`, open);
 }
 
-function bimFolds(list, open) {
-  const byDate = {};
-  list.forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
-  return Object.keys(byDate).sort().map((k) =>
-    fold(k.split("|")[1], `${byDate[k].length} ürün`, BROCHURE_COLORS["BİM"], byDate[k].map(cardHtml).join(""), open)).join("");
+/** Aktüel ürünleri market market (BİM, A101), içinde de tarih/kampanya bölümleriyle gösterir. */
+function aktuelSections(list, open, hint = "") {
+  return ["bim", "a101"].map((m) => {
+    const byDate = {};
+    list.filter((it) => it.p[0][0] === m).forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
+    const keys = Object.keys(byDate).sort();
+    if (!keys.length) return "";
+    const color = [MARKETS[m].color, MARKETS[m].text || "#fff"];
+    return `<h2 class="aktuel-title">${MARKETS[m].name} Aktüel</h2>${hint}` + keys.map((k) =>
+      fold(k.split("|")[1], `${byDate[k].length} ürün`, color, byDate[k].map(cardHtml).join(""), open)).join("");
+  }).join("");
 }
 
 function renderAktuel(force = false) {
@@ -311,18 +319,17 @@ function renderAktuel(force = false) {
   const all = (pages) => pages.map((_, i) => i);
 
   if (!q) {
-    const bim = bimFolds(items.filter((it) => it.d), false);
-    el.innerHTML = (bim ? `<h2 class="aktuel-title">BİM Aktüel</h2><p class="section-title">Tarihe dokun, o günün ürünleri açılsın.</p>${bim}` : "") +
+    el.innerHTML = aktuelSections(items.filter((it) => it.d), false, `<p class="section-title">Tarihe dokun, ürünler açılsın.</p>`) +
       `<h2 class="aktuel-title">Broşürler</h2><p class="section-title">Broşürü açmak için adına, büyütmek için resme dokun.</p>` +
       brochures.map((b) => brochureFold(b, all(b.images), false)).join("");
     return;
   }
 
-  // Arama: sadece eşleşen BİM ürünleri ve Şok broşüründe ürünün geçtiği sayfalar, açık gelir.
+  // Arama: sadece eşleşen aktüel ürünleri ve Şok broşüründe ürünün geçtiği sayfalar, açık gelir.
   const { akt, pages } = aktuelMatches(toTokens(q));
   const unsearchable = brochures.filter((b) => !b.texts);
   let html = "";
-  if (akt.length) html += `<h2 class="aktuel-title">BİM Aktüel</h2>${bimFolds(akt, true)}`;
+  html += aktuelSections(akt, true);
   if (pages.length) {
     html += `<h2 class="aktuel-title">Broşürlerde geçiyor</h2>` + pages.map(({ b, pages: idx }) =>
       brochureFold(b, idx, true, `${idx.map((i) => i + 1).join(", ")}. sayfa`)).join("");
@@ -339,7 +346,7 @@ function renderAktuel(force = false) {
 let bgCheckOk = false; // uygulama kapalıyken günlük kontrol (Chrome'un periodic sync özelliği) açık mı
 let watchCtx = null;   // hedef fiyat penceresi hangi ürün için açık
 
-const whereText = (best) => best.d ? `BİM aktüel · ${best.d}` : MARKETS[best.m].name;
+const whereText = (best) => best.d ? `${MARKETS[best.m].name} aktüel · ${best.d}` : MARKETS[best.m].name;
 const bestNow = (n) => sources ? checkAlerts([{ key: nameKey(n), target: 0 }], sources)[0].best : null;
 
 function bellHtml(it, idx) {
@@ -441,7 +448,7 @@ function permissionNote() {
 function renderTakip() {
   const el = $("#takip");
   let html = `<h2 class="aktuel-title">Fiyat takibi</h2>
-    <p class="section-title">Takip ettiğin ürün istediğin fiyata ya da altına inince haber verilir. Bütün marketlere ve BİM aktüele bakılır.</p>${permissionNote()}`;
+    <p class="section-title">Takip ettiğin ürün istediğin fiyata ya da altına inince haber verilir. Bütün marketlere ve BİM / A101 aktüele bakılır.</p>${permissionNote()}`;
   if (!alerts.length) {
     el.innerHTML = html + `<div class="empty"><big>🔔</big>Henüz takip ettiğin ürün yok.<br>"Ara" kısmında ürünün yanındaki <b>🔔 Takip et</b> butonuna dokun.</div>`;
     return;
