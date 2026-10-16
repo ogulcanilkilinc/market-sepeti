@@ -353,7 +353,7 @@ def scrape_sok(out_dir):
             req = urllib.request.Request(base + pdf, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=120) as r:
                 pdf_path.write_bytes(r.read())
-            subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=70", "-scale-to", "1100",
+            subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=70", "-scale-to", "1500",
                             str(pdf_path), str(sok_dir / slug)], check=True)
             # Sayfa metinleri: uygulamada "aradığın ürün Şok broşürünün 3. sayfasında" diyebilmek için.
             text = subprocess.run(["pdftotext", "-enc", "UTF-8", str(pdf_path), "-"],
