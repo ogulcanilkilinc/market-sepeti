@@ -5,6 +5,7 @@ const SUGGESTIONS = [["🥛", "Süt"], ["🍞", "Ekmek"], ["🥚", "Yumurta"], [
   ["🍅", "Domates"], ["🥔", "Patates"], ["🧅", "Soğan"], ["🌻", "Ayçiçek yağı"], ["🫒", "Zeytinyağı"], ["🍵", "Çay"],
   ["🍬", "Şeker"], ["🌾", "Un"], ["🍚", "Pirinç"], ["🍝", "Makarna"], ["🍗", "Tavuk"], ["🥩", "Kıyma"], ["🧴", "Deterjan"]];
 const PAGE = 30;
+const AKTUEL_MARKETS = ["bim", "a101", "yunus"]; // aktüel ürünleri olan marketler (Aktüel sekmesindeki sıra)
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -110,7 +111,7 @@ function score(it, tokens) {
 
 const toTokens = (q) => norm(q).split(" ").filter(Boolean);
 
-/** Aranan şey aktüelde var mı: BİM / A101 aktüel ürünleri ve Şok broşüründe geçtiği sayfalar. */
+/** Aranan şey aktüelde var mı: BİM / A101 / Yunus aktüel ürünleri ve broşürlerde geçtiği sayfalar. */
 function aktuelMatches(tokens) {
   const akt = items
     .filter((it) => it.d)
@@ -146,7 +147,7 @@ function search() {
   $("#results").innerHTML = "";
   if (akt.length || pages.length) {
     const lines = [];
-    for (const m of ["bim", "a101"]) {
+    for (const m of AKTUEL_MARKETS) {
       const list = akt.filter((it) => it.p[0][0] === m);
       if (list.length) lines.push(`<li><b>${MARKETS[m].name} aktüel:</b> ${uniq(list.map((it) => it.d)).map(esc).join(", ")} <small>(${list.length} ürün)</small></li>`);
     }
@@ -272,6 +273,7 @@ const BROCHURE_COLORS = {
   "Şok": ["#e0a800", "#1c1c1c"],
   "Çağdaş": ["#e65100", "#fff"],
   "Anadolu Tat": ["#2e7d32", "#fff"],
+  "Yunus": ["#6a1b9a", "#fff"],
 };
 let aktuelShown = null; // ekranda hangi aramanın sonucu var (aynıysa yeniden çizme)
 
@@ -298,9 +300,9 @@ function brochureFold(b, pageIdx, open, note = "") {
     `<p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p>`, open);
 }
 
-/** Aktüel ürünleri market market (BİM, A101), içinde de tarih/kampanya bölümleriyle gösterir. */
+/** Aktüel ürünleri market market (BİM, A101, Yunus), içinde de tarih/kampanya bölümleriyle gösterir. */
 function aktuelSections(list, open, hint = "") {
-  return ["bim", "a101"].map((m) => {
+  return AKTUEL_MARKETS.map((m) => {
     const byDate = {};
     list.filter((it) => it.p[0][0] === m).forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
     const keys = Object.keys(byDate).sort();
@@ -449,7 +451,7 @@ function permissionNote() {
 function renderTakip() {
   const el = $("#takip");
   let html = `<h2 class="aktuel-title">Fiyat takibi</h2>
-    <p class="section-title">Takip ettiğin ürün istediğin fiyata ya da altına inince haber verilir. Bütün marketlere ve BİM / A101 aktüele bakılır.</p>${permissionNote()}`;
+    <p class="section-title">Takip ettiğin ürün istediğin fiyata ya da altına inince haber verilir. Bütün marketlere ve BİM / A101 / Yunus aktüele bakılır.</p>${permissionNote()}`;
   if (!alerts.length) {
     el.innerHTML = html + `<div class="empty"><big>🔔</big>Henüz takip ettiğin ürün yok.<br>"Ara" kısmında ürünün yanındaki <b>🔔 Takip et</b> butonuna dokun.</div>`;
     return;

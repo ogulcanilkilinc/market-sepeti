@@ -1,12 +1,15 @@
-# Market Sepeti
+# HesaplıSepet
 
-Ankara (Çankaya) marketlerinde fiyat karşılaştırıp alışveriş listesi hazırlamak için sade bir telefon uygulaması.
+**Karşılaştır, listele, tasarruf et.** Ankara (Çankaya) marketlerinde fiyat karşılaştırıp alışveriş listesi
+hazırlamak için sade bir telefon uygulaması.
+
+Adres: https://ogulcanilkilinc.github.io/market-sepeti/ (yüklü uygulama bozulmasın diye repo/adres adı değiştirilmedi).
 
 - **Ara:** "süt" yaz (veya 🎤 ile söyle), marketlerdeki fiyatlar en ucuzdan pahalıya listelenir. "Ekle" ile sepete at.
 - **Sepetim:** Ürünler market market gruplanır. Alınanları ✓ ile işaretle, listeyi WhatsApp'la gönder.
-- **Aktüel:** BİM ve A101 aktüel ürünleri (tarih / kampanya bölümleriyle, sepete eklenebilir), Şok / Çağdaş / Anadolu Tat broşürleri.
+- **Aktüel:** BİM, A101 ve Yunus aktüel ürünleri (tarih / kampanya bölümleriyle, sepete eklenebilir), Şok / Çağdaş / Anadolu Tat broşürleri.
   Üstteki kutudan aktüelde arama yapılır; ana aramada ürün aktüeldeyse "Aktüelde de var" kutusu çıkar.
-- **Takip:** Ürün kartındaki 🔔 ile hedef fiyat belirlenir. Fiyat herhangi bir markette ya da BİM aktüelde
+- **Takip:** Ürün kartındaki 🔔 ile hedef fiyat belirlenir. Fiyat herhangi bir markette ya da aktüelde
   hedefe inince telefona bildirim gelir (uygulama açılınca ve, ana ekrana eklenmişse, Chrome'un günlük
   arka plan kontrolüyle). Takip listesi sadece o telefonda tutulur.
 
