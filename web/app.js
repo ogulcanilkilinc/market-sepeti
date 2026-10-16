@@ -1,31 +1,19 @@
 "use strict";
+// MARKETS, tl, norm, nameKey ve fiyat takibi fonksiyonları common.js içinde.
 
-const MARKETS = {
-  a101:        { name: "A101",        color: "#0099d8" },
-  bim:         { name: "BİM",         color: "#d7141a" },
-  sok:         { name: "Şok",         color: "#e0a800", text: "#1c1c1c" },
-  migros:      { name: "Migros",      color: "#f07d00" },
-  carrefour:   { name: "CarrefourSA", color: "#1e4fa0" },
-  tarim_kredi: { name: "Tarım Kredi", color: "#2e7d32" },
-  yunus:       { name: "Yunus",       color: "#6a1b9a" },
-};
 const SUGGESTIONS = ["Süt", "Ekmek", "Yumurta", "Beyaz peynir", "Yoğurt", "Domates", "Patates", "Soğan",
   "Ayçiçek yağı", "Zeytinyağı", "Çay", "Şeker", "Un", "Pirinç", "Makarna", "Tavuk", "Kıyma", "Deterjan"];
 const PAGE = 30;
 
 const $ = (s) => document.querySelector(s);
-const tl = (n) => n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/** "Süt", "SUT", "süt" -> "sut". Türkçe harfleri sadeleştirir. */
-function norm(s) {
-  return String(s).toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/ı/g, "i").replace(/[^a-z0-9]+/g, " ").trim();
-}
 const unitValue = (u) => { const m = u && u.match(/([\d.]+,\d+)/); return m ? parseFloat(m[1].replace(/\./g, "").replace(",", ".")) : Infinity; };
 
 // ─── Veri ──────────────────────────────────────────────────────────────
 let items = [];
+let sources = null; // ham kaynaklar (fiyat takibi kontrolü için)
+let alerts = [];    // fiyat takibi listesi (common.js: loadAlerts/saveAlerts)
 let brochures = []; // Çağdaş, Anadolu Tat, Şok broşürleri; Şok'ta sayfa metinleri de var (texts)
 
 async function loadBrochures() {
@@ -41,6 +29,7 @@ async function loadData() {
     const res = await fetch("data/products.json", { cache: "no-cache" });
     const data = await res.json();
     mergeYunus(data.sources);
+    sources = data.sources;
     items = Object.values(data.sources).flat().map((it) => ({
       ...it,
       w: norm(it.n).split(" "),
@@ -58,13 +47,15 @@ async function loadData() {
     $("#updated").textContent = "Fiyatlar yüklenemedi. İnternet bağlantını kontrol et.";
   }
   await brochuresReady;
+  alerts = await loadAlerts();
+  refreshBells();
+  if (alerts.length) await setupBackgroundCheck();
+  await updateTakip(true);
+  const startTab = new URLSearchParams(location.search).get("tab");
+  if (startTab) showTab(startTab);
   if ($("#q").value) search();
   if ($("#tab-aktuel").classList.contains("active")) renderAktuel(true);
 }
-
-/** Ad + gramajdan sıralamasız anahtar: "Pınar Organik Süt 1 Lt" ile "PINAR SUT ORGANIK 1 LT" aynı çıkar. */
-const UNIT_ALIAS = { l: "lt", litre: "lt", gr: "g", gram: "g" };
-const nameKey = (n) => [...new Set(norm(n).split(" ").map((w) => UNIT_ALIAS[w] || w))].sort().join(" ");
 
 /** Yunus ürünü diğer marketlerde birebir aynı adla varsa, Yunus fiyatını o ürünün kartına ekler. */
 function mergeYunus(sources) {
@@ -195,7 +186,8 @@ function cardHtml(it) {
   return `<article class="card">
     <div class="card-head">
       ${it.i ? `<img src="${esc(it.i)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}
-      <div><div class="name">${esc(it.n)}</div>${it.s ? `<div class="size">${esc(it.s)}</div>` : ""}</div>
+      <div class="card-title"><div class="name">${esc(it.n)}</div>${it.s ? `<div class="size">${esc(it.s)}</div>` : ""}
+        ${it.d ? "" : bellHtml(it, idx)}</div>
     </div>${offers}</article>`;
 }
 
@@ -343,12 +335,168 @@ function renderAktuel(force = false) {
   el.innerHTML = html;
 }
 
+// ─── Fiyat takibi ──────────────────────────────────────────────────────
+let bgCheckOk = false; // uygulama kapalıyken günlük kontrol (Chrome'un periodic sync özelliği) açık mı
+let watchCtx = null;   // hedef fiyat penceresi hangi ürün için açık
+
+const whereText = (best) => best.d ? `BİM aktüel · ${best.d}` : MARKETS[best.m].name;
+const bestNow = (n) => sources ? checkAlerts([{ key: nameKey(n), target: 0 }], sources)[0].best : null;
+
+function bellHtml(it, idx) {
+  const a = alerts.find((x) => x.key === nameKey(it.n));
+  return `<button class="bell ${a ? "on" : ""}" data-watch="${idx}" data-key="${esc(nameKey(it.n))}">${a ? "🔔 " + tl(a.target) : "🔔 Takip et"}</button>`;
+}
+
+function refreshBells() {
+  document.querySelectorAll(".bell[data-key]").forEach((b) => {
+    const a = alerts.find((x) => x.key === b.dataset.key);
+    b.classList.toggle("on", !!a);
+    b.textContent = a ? "🔔 " + tl(a.target) : "🔔 Takip et";
+  });
+}
+
+function openWatch(it) {
+  const key = nameKey(it.n);
+  const existing = alerts.find((a) => a.key === key);
+  const best = bestNow(it.n);
+  watchCtx = { key, n: it.n, s: it.s || "" };
+  $("#wdName").textContent = it.n;
+  $("#wdNow").innerHTML = best ? `Şu an en ucuz: <b>${tl(best.price)}</b> (${esc(whereText(best))})` : "";
+  const target = existing ? existing.target : Math.floor((best ? best.price : 0) * 0.9);
+  $("#wdPrice").value = String(target).replace(".", ",");
+  $("#watchDlg").showModal();
+}
+
+const parsePrice = (v) => parseFloat(String(v).trim().replace(",", "."));
+
+$("#watchDlg").addEventListener("click", (e) => {
+  const step = e.target.closest("[data-step]");
+  if (!step) return;
+  const t = parsePrice($("#wdPrice").value) || 0;
+  const amount = t < 50 ? 1 : t < 200 ? 5 : 10;
+  $("#wdPrice").value = String(Math.max(0, Math.round(t + amount * +step.dataset.step))).replace(".", ",");
+});
+
+$("#watchDlg").addEventListener("close", async () => {
+  if ($("#watchDlg").returnValue !== "save" || !watchCtx) return;
+  const target = parsePrice($("#wdPrice").value);
+  if (!(target > 0)) return toast("Geçerli bir fiyat yaz.");
+  let a = alerts.find((x) => x.key === watchCtx.key);
+  if (!a) {
+    a = { id: Date.now().toString(36), key: watchCtx.key, n: watchCtx.n, s: watchCtx.s };
+    alerts.push(a);
+  }
+  a.target = Math.round(target * 100) / 100;
+  delete a.notified;
+  const best = bestNow(a.n);
+  if (best && best.price <= a.target) {
+    a.notified = { price: best.price, m: best.m, d: best.d }; // zaten ucuz: hemen bildirim atma, ekranda söyle
+    toast(`Şu an zaten bu fiyatın altında: ${tl(best.price)} (${whereText(best)})`);
+  } else {
+    toast(`Takibe alındı. ${tl(a.target)} ya da altına inince haber vereceğiz.`);
+  }
+  await saveAlerts(alerts);
+  refreshBells();
+  if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission();
+  await setupBackgroundCheck();
+  await updateTakip(false);
+});
+
+/** Uygulama kapalıyken Chrome'un günde yaklaşık bir kez kontrol etmesini ister (sadece yüklü uygulamada çalışır). */
+async function setupBackgroundCheck() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!("periodicSync" in reg)) return (bgCheckOk = false);
+    const st = await navigator.permissions.query({ name: "periodic-background-sync" });
+    if (st.state !== "granted") return (bgCheckOk = false);
+    await reg.periodicSync.register("fiyat-kontrol", { minInterval: 12 * 60 * 60 * 1000 });
+    return (bgCheckOk = true);
+  } catch { return (bgCheckOk = false); }
+}
+
+/** Takip sonuçlarını hesaplar; istenirse yeni indirimler için bildirim gösterir, rozeti günceller. */
+async function updateTakip(notify) {
+  if (!sources) return;
+  if (notify && alerts.length && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (await notifyNewHits(reg, alerts, sources)) await saveAlerts(alerts);
+    } catch { /* bildirim gösterilemezse Takip sekmesinde yine görünür */ }
+  }
+  const hits = checkAlerts(alerts, sources).filter((r) => r.hit).length;
+  $("#takipCount").hidden = !hits;
+  $("#takipCount").textContent = hits;
+  if ($("#tab-takip").classList.contains("active")) renderTakip();
+}
+
+function permissionNote() {
+  if (!alerts.length) return "";
+  if (!("Notification" in window)) return `<p class="note">Bu tarayıcı bildirim göstermiyor. İndirimleri bu sayfadan takip edebilirsin.</p>`;
+  if (Notification.permission === "denied") return `<p class="note warn">Bildirimler kapalı. Telefonun Ayarlar → Uygulamalar → Chrome (ya da Market Sepeti) → Bildirimler kısmından açabilirsin.</p>`;
+  if (Notification.permission === "default") return `<button class="big-btn perm" data-perm>🔔 Bildirimlere izin ver</button>`;
+  if (!bgCheckOk) return `<p class="note">Uygulama kapalıyken de haber alman için uygulamayı ana ekrana ekle. Uygulamayı her açtığında da kontrol edilir.</p>`;
+  return `<p class="note ok">✓ Bildirimler açık. Her gün kontrol ediliyor.</p>`;
+}
+
+function renderTakip() {
+  const el = $("#takip");
+  let html = `<h2 class="aktuel-title">Fiyat takibi</h2>
+    <p class="section-title">Takip ettiğin ürün istediğin fiyata ya da altına inince haber verilir. Bütün marketlere ve BİM aktüele bakılır.</p>${permissionNote()}`;
+  if (!alerts.length) {
+    el.innerHTML = html + `<div class="empty"><big>🔔</big>Henüz takip ettiğin ürün yok.<br>"Ara" kısmında ürünün yanındaki <b>🔔 Takip et</b> butonuna dokun.</div>`;
+    return;
+  }
+  const res = sources ? checkAlerts(alerts, sources) : alerts.map((a) => ({ alert: a, best: null, hit: false }));
+  res.sort((x, y) => y.hit - x.hit);
+  el.innerHTML = html + res.map(({ alert: a, best, hit }) => `
+    <article class="watch-card ${hit ? "hit" : ""}" data-id="${esc(a.id)}">
+      <div class="name">${esc(a.n)}</div>
+      <div>Hedefin: <b>${tl(a.target)}</b></div>
+      ${!best ? `<div class="watch-status">Şu an hiçbir markette bulunamadı.</div>`
+        : hit ? `<div class="watch-status hit">✅ İndirimde! ${tl(best.price)} · ${esc(whereText(best))}</div>`
+        : `<div class="watch-status">Şu an en ucuz: ${tl(best.price)} · ${esc(whereText(best))}</div>`}
+      ${best && best.d ? `<div class="ci-sub">${esc(best.n)}</div>` : ""}
+      <div class="watch-actions">
+        <button data-wfind>🔍 Bul</button><button data-wedit>Hedefi değiştir</button><button data-wdel class="del">Sil</button>
+      </div>
+    </article>`).join("");
+}
+
+$("#takip").addEventListener("click", async (e) => {
+  if (e.target.closest("[data-perm]")) {
+    await Notification.requestPermission();
+    await setupBackgroundCheck();
+    return updateTakip(true);
+  }
+  const card = e.target.closest("[data-id]");
+  if (!card) return;
+  const a = alerts.find((x) => x.id === card.dataset.id);
+  if (!a) return;
+  if (e.target.closest("[data-wfind]")) {
+    $("#q").value = a.n;
+    showTab("search");
+    return search();
+  }
+  if (e.target.closest("[data-wedit]")) return openWatch({ n: a.n, s: a.s });
+  if (e.target.closest("[data-wdel]") && confirm(`"${a.n}" takipten çıkarılsın mı?`)) {
+    alerts = alerts.filter((x) => x !== a);
+    await saveAlerts(alerts);
+    refreshBells();
+    updateTakip(false);
+    renderTakip();
+  }
+});
+
+// Bildirime dokununca uygulama açıksa Takip sekmesine geç.
+navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.tab) showTab(e.data.tab); });
+
 // ─── Arayüz olayları ───────────────────────────────────────────────────
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + name));
   document.querySelectorAll(".bottom button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   if (name === "cart") renderCart();
   if (name === "aktuel") renderAktuel();
+  if (name === "takip") renderTakip();
   scrollTo(0, 0);
 }
 
@@ -376,6 +524,8 @@ $("#suggest").addEventListener("click", (e) => {
 
 function onCardClick(e) {
   if (e.target.matches(".more")) return showMore();
+  const bell = e.target.closest("[data-watch]");
+  if (bell) return openWatch(items[+bell.dataset.watch]);
   const btn = e.target.closest("[data-act]");
   if (!btn) return;
   const box = btn.closest("[data-key]");

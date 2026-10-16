@@ -43,16 +43,41 @@
       </form>
       <div id="aktuel"></div>
     </section>
+
+    <!-- FİYAT TAKİBİ -->
+    <section id="tab-takip" class="tab" aria-label="Fiyat takibi">
+      <div id="takip"></div>
+    </section>
   </main>
 
   <nav class="bottom">
     <button data-tab="search" class="active"><span>🔍</span>Ara</button>
     <button data-tab="cart"><span>🧺</span>Sepetim<b id="cartCount" hidden></b></button>
     <button data-tab="aktuel"><span>📰</span>Aktüel</button>
+    <button data-tab="takip"><span>🔔</span>Takip<b id="takipCount" hidden></b></button>
   </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <!-- Hedef fiyat penceresi -->
+  <dialog id="watchDlg" aria-labelledby="wdName">
+    <form method="dialog">
+      <h2 id="wdName"></h2>
+      <p id="wdNow"></p>
+      <label for="wdPrice">Fiyat bu rakama ya da altına inince haber ver:</label>
+      <div class="price-input">
+        <button type="button" data-step="-1" aria-label="Azalt">−</button>
+        <input id="wdPrice" inputmode="decimal" autocomplete="off"><span>₺</span>
+        <button type="button" data-step="1" aria-label="Arttır">+</button>
+      </div>
+      <div class="dlg-buttons">
+        <button value="cancel" class="dlg-cancel">Vazgeç</button>
+        <button value="save" class="dlg-save">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="common.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

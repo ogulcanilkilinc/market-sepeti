@@ -4,7 +4,11 @@ Ankara (Çankaya) marketlerinde fiyat karşılaştırıp alışveriş listesi ha
 
 - **Ara:** "süt" yaz (veya 🎤 ile söyle), marketlerdeki fiyatlar en ucuzdan pahalıya listelenir. "Ekle" ile sepete at.
 - **Sepetim:** Ürünler market market gruplanır. Alınanları ✓ ile işaretle, listeyi WhatsApp'la gönder.
-- **Aktüel:** BİM aktüel ürünleri (tarih tarih, sepete eklenebilir) ve Çağdaş / Anadolu Tat'ın haftalık fırsat görselleri.
+- **Aktüel:** BİM aktüel ürünleri (tarih tarih, sepete eklenebilir), Şok / Çağdaş / Anadolu Tat broşürleri.
+  Üstteki kutudan aktüelde arama yapılır; ana aramada ürün aktüeldeyse "Aktüelde de var" kutusu çıkar.
+- **Takip:** Ürün kartındaki 🔔 ile hedef fiyat belirlenir. Fiyat herhangi bir markette ya da BİM aktüelde
+  hedefe inince telefona bildirim gelir (uygulama açılınca ve, ana ekrana eklenmişse, Chrome'un günlük
+  arka plan kontrolüyle). Takip listesi sadece o telefonda tutulur.
 
 ## Veri kaynakları
 
@@ -13,6 +17,7 @@ Ankara (Çankaya) marketlerinde fiyat karşılaştırıp alışveriş listesi ha
 | A101, BİM, Şok, Migros, CarrefourSA, Tarım Kredi | [marketfiyati.org.tr](https://marketfiyati.org.tr) (TÜBİTAK), Kızılay çevresi 5 km'deki şubeler |
 | Yunus | [yunusonline.com](https://yunusonline.com) |
 | BİM aktüel | [bim.com.tr aktüel ürünler](https://www.bim.com.tr/Categories/100/aktuel-urunler.aspx) |
+| Şok broşürü | [kurumsal.sokmarket.com.tr/tr/firsatlar](https://kurumsal.sokmarket.com.tr/tr/firsatlar) (PDF → sayfa resimleri + aranabilir metin) |
 | Çağdaş | [cagdasmarketler.com](https://www.cagdasmarketler.com/tr) haftalık broşür (sadece görsel) |
 | Anadolu Tat | [anadolutat.com/kampanyalar](https://www.anadolutat.com/kampanyalar) (sadece görsel) |
 
