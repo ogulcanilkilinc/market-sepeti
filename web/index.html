@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Market Sepeti</title>
+  <meta name="description" content="Ankara marketlerinde fiyat karşılaştır, alışveriş listeni hazırla.">
+  <meta name="theme-color" content="#1f7a4d">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>🛒 Market Sepeti</h1>
+    <button id="installBtn" class="install" hidden>Ana ekrana ekle</button>
+  </header>
+
+  <main>
+    <!-- ARA -->
+    <section id="tab-search" class="tab active" aria-label="Ürün ara">
+      <form id="searchForm" class="search" role="search" autocomplete="off">
+        <input id="q" type="search" inputmode="search" enterkeyhint="search"
+               placeholder="Ne alacaksın? (örn. süt)" aria-label="Ürün adı">
+        <button type="button" id="micBtn" class="mic" aria-label="Sesle söyle" hidden>🎤</button>
+      </form>
+      <p id="updated" class="updated"></p>
+      <div id="suggest" class="suggest"></div>
+      <div id="results"></div>
+    </section>
+
+    <!-- SEPET -->
+    <section id="tab-cart" class="tab" aria-label="Sepetim">
+      <div id="cart"></div>
+    </section>
+
+    <!-- BROŞÜRLER -->
+    <section id="tab-brochures" class="tab" aria-label="Broşürler">
+      <div id="brochures"></div>
+    </section>
+  </main>
+
+  <nav class="bottom">
+    <button data-tab="search" class="active"><span>🔍</span>Ara</button>
+    <button data-tab="cart"><span>🧺</span>Sepetim<b id="cartCount" hidden></b></button>
+    <button data-tab="brochures"><span>📰</span>Broşürler</button>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

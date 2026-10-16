@@ -1,0 +1,59 @@
+name: Fiyatları güncelle ve yayınla
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # her gün 09:00 (Türkiye). marketfiyati verisi ~08:30'da yenileniyor.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Önceki veriyi indir (bir kaynak çökerse yedek olarak kullanılır)
+        run: |
+          BASE="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data"
+          curl -sfL "$BASE/products.json" -o /tmp/prev-products.json || echo "önceki veri yok"
+          curl -sfL "$BASE/brochures.json" -o /tmp/prev-brochures.json || echo "önceki broşür yok"
+
+      - name: Fiyatları topla
+        run: python scraper/scrape.py --out web/data --previous /tmp/prev-products.json --previous-brochures /tmp/prev-brochures.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      # GitHub, 60 gün commit olmayan repolarda zamanlanmış görevleri kapatıyor; bunu engeller.
+      - name: Zamanlayıcıyı açık tut
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable" || true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
