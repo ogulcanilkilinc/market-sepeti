@@ -404,6 +404,8 @@ def main():
     ap.add_argument("--previous", default="", help="bir önceki products.json (yedek için)")
     ap.add_argument("--previous-brochures", default="")
     ap.add_argument("--only", default="", help="test için: mf,yunus,aktuel,brochures")
+    ap.add_argument("--reuse-today", action="store_true",
+                    help="bugün zaten toplanmış kaynakları yeniden tarama (kod güncellemesinde sitelere yük olmasın)")
     ap.add_argument("--yunus-file", default="",
                     help="bilgisayardan gönderilen yunus.json; verilirse Yunus burada taranmaz (bkz. push_yunus.py)")
     args = ap.parse_args()
@@ -422,6 +424,10 @@ def main():
     stamps = {}
 
     def collect(key, name, fn):
+        if args.reuse_today and prev_src.get(key) and (prev_stamps.get(key) or "")[:10] == now[:10]:
+            sources[key], ok[key], stamps[key] = prev_src[key], True, prev_stamps[key]
+            log(f"↺ {name}: bugünkü veri yeniden kullanıldı ({stamps[key]})")
+            return
         sources[key], ok[key] = run(name, fn, prev_src.get(key, []))
         stamps[key] = now if ok[key] else prev_stamps.get(key)
 

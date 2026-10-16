@@ -47,6 +47,7 @@ jobs:
           python scraper/scrape.py --out web/data
           --previous /tmp/prev-products.json --previous-brochures /tmp/prev-brochures.json
           --yunus-file /tmp/yunus.json
+          ${{ github.event_name == 'push' && '--reuse-today' || '' }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
