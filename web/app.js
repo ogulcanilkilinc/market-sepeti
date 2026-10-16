@@ -31,6 +31,7 @@ async function loadData() {
   try {
     const res = await fetch("data/products.json", { cache: "no-cache" });
     const data = await res.json();
+    mergeYunus(data.sources);
     items = Object.values(data.sources).flat().map((it) => ({
       ...it,
       w: norm(it.n).split(" "),
@@ -43,10 +44,43 @@ async function loadData() {
     const y = data.stamps?.yunus;
     if (y && y.slice(0, 10) !== data.updated.slice(0, 10)) text += ` (Yunus: ${fmt(y)})`;
     $("#updated").textContent = text;
+    refreshCartPrices();
   } catch (e) {
     $("#updated").textContent = "Fiyatlar yüklenemedi. İnternet bağlantını kontrol et.";
   }
   if ($("#q").value) search();
+}
+
+/** Ad + gramajdan sıralamasız anahtar: "Pınar Organik Süt 1 Lt" ile "PINAR SUT ORGANIK 1 LT" aynı çıkar. */
+const UNIT_ALIAS = { l: "lt", litre: "lt", gr: "g", gram: "g" };
+const nameKey = (n) => [...new Set(norm(n).split(" ").map((w) => UNIT_ALIAS[w] || w))].sort().join(" ");
+
+/** Yunus ürünü diğer marketlerde birebir aynı adla varsa, Yunus fiyatını o ürünün kartına ekler. */
+function mergeYunus(sources) {
+  if (!sources.mf || !sources.yunus) return;
+  const byKey = new Map();
+  for (const it of sources.mf) {
+    const k = nameKey(it.n);
+    byKey.set(k, byKey.has(k) ? null : it); // aynı ada sahip birden çok ürün varsa eşleştirme
+  }
+  sources.yunus = sources.yunus.filter((y) => {
+    const it = byKey.get(nameKey(y.n));
+    if (!it || it.p.some((o) => o[0] === "yunus")) return true;
+    it.p.push(y.p[0]);
+    it.p.sort((a, b) => a[1] - b[1]);
+    return false;
+  });
+}
+
+/** Sepetteki fiyatları bugünün fiyatlarıyla günceller (ürün bulunamazsa eski fiyat kalır). */
+function refreshCartPrices() {
+  const now = new Map();
+  for (const it of items) for (const [m, price, unit] of it.p) now.set(cartKey(m, it), [price, unit]);
+  for (const c of cart) {
+    const p = now.get(c.key);
+    if (p) [c.price, c.unit] = p;
+  }
+  saveCart();
 }
 
 // ─── Arama ─────────────────────────────────────────────────────────────
@@ -194,27 +228,45 @@ function whatsappText(groups, grand) {
 }
 
 // ─── Aktüel ve broşürler ───────────────────────────────────────────────
+const BROCHURE_COLORS = {
+  "BİM": ["#d7141a", "#fff"],
+  "Şok": ["#e0a800", "#1c1c1c"],
+  "Çağdaş": ["#e65100", "#fff"],
+  "Anadolu Tat": ["#2e7d32", "#fff"],
+};
 let aktuelLoaded = false;
+
+// Uzun bir bölüm, sabit duran başlığından kapatılınca sayfa o bölümün başına döner.
+document.addEventListener("toggle", (e) => {
+  const d = e.target;
+  if (!d.matches?.(".fold") || d.open) return;
+  const topBar = $(".top").offsetHeight;
+  if (d.getBoundingClientRect().top < topBar) scrollTo(0, d.getBoundingClientRect().top + scrollY - topBar - 8);
+}, true);
 async function renderAktuel() {
   if (aktuelLoaded) return;
   const el = $("#aktuel");
   el.innerHTML = `<div class="empty"><big>⏳</big>Yükleniyor…</div>`;
   try {
     const data = await (await fetch("data/brochures.json", { cache: "no-cache" })).json();
-    // BİM aktüel: tarih tarih, bugüne en yakın olan açık gelir.
+    // Her bölüm açılır-kapanır; başlık kaydırırken üstte sabit durur, dokununca kapanır.
+    const fold = (title, count, color, body) =>
+      `<details class="fold"><summary style="background:${color[0]};color:${color[1]}"><span>${esc(title)} <small>(${count})</small></span></summary>
+        <div class="fold-body">${body}</div></details>`;
+
     const byDate = {};
     items.filter((it) => it.d).forEach((it) => (byDate[it.ds + "|" + it.d] ||= []).push(it));
-    const today = new Date().toLocaleDateString("sv"); // yerel tarih, YYYY-AA-GG
-    const keys = Object.keys(byDate).sort();
-    const openKey = keys.filter((k) => k.slice(0, 10) <= today).pop() || keys[0];
-    const bim = keys.length ? `<h2 class="aktuel-title">BİM Aktüel</h2>` + keys.map((k) =>
-      `<details class="aktuel-day" ${k === openKey ? "open" : ""}><summary>${esc(k.split("|")[1])} <small>(${byDate[k].length} ürün)</small></summary>
-        ${byDate[k].map(cardHtml).join("")}</details>`).join("") : "";
-    el.innerHTML = bim +
-      `<p class="section-title">Aşağıdaki marketler fiyat listesi yayınlamıyor, haftalık fırsatlarını buradan görebilirsin. Büyütmek için resme dokun.</p>` +
-      data.brochures.map((b) => `<section class="brochure"><h2>${esc(b.name)} fırsatları</h2>
-        ${b.images.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(b.name)} broşürü" loading="lazy"></a>`).join("")}
-        <p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p></section>`).join("");
+    const bim = Object.keys(byDate).sort().map((k) =>
+      fold(k.split("|")[1], `${byDate[k].length} ürün`, BROCHURE_COLORS["BİM"], byDate[k].map(cardHtml).join(""))).join("");
+
+    const brochures = data.brochures.map((b) => fold(b.title || `${b.name} fırsatları`, (b.date ? b.date + " · " : "") + `${b.images.length} sayfa`,
+      BROCHURE_COLORS[b.name] || ["#555", "#fff"],
+      b.images.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img class="page" src="${esc(u)}" alt="${esc(b.name)} broşürü" loading="lazy"></a>`).join("") +
+      (b.pdf ? `<a class="pdf" href="${esc(b.pdf)}" target="_blank" rel="noopener">📄 Broşürün aslını aç (PDF)</a>` : "") +
+      `<p class="src">Kaynak: ${esc(new URL(b.url).hostname)}</p>`)).join("");
+
+    el.innerHTML = (bim ? `<h2 class="aktuel-title">BİM Aktüel</h2><p class="section-title">Tarihe dokun, o günün ürünleri açılsın.</p>${bim}` : "") +
+      `<h2 class="aktuel-title">Broşürler</h2><p class="section-title">Bu marketler fiyat listesi yayınlamıyor. Broşürü açmak için adına, büyütmek için resme dokun.</p>${brochures}`;
     aktuelLoaded = items.length > 0;
   } catch {
     el.innerHTML = `<div class="empty"><big>📶</big>Yüklenemedi. İnternet bağlantını kontrol et.</div>`;

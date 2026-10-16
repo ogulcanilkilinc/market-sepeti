@@ -9,6 +9,7 @@
   --line: #e2e0da;
   --red: #c62828;
   --nav-h: 72px;
+  --top-h: 58px;
 }
 
 * { box-sizing: border-box; }
@@ -30,7 +31,7 @@ button { font: inherit; cursor: pointer; }
   position: sticky; top: 0; z-index: 5;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--green); color: #fff;
-  padding: 12px 16px;
+  height: var(--top-h); padding: 0 16px;
 }
 .top h1 { margin: 0; font-size: 22px; }
 .install {
@@ -44,7 +45,7 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 .tab.active { display: block; }
 
 /* Arama */
-.search { display: flex; gap: 8px; position: sticky; top: 58px; z-index: 4; background: var(--bg); padding: 4px 0 8px; }
+.search { display: flex; gap: 8px; position: sticky; top: var(--top-h); z-index: 4; background: var(--bg); padding: 4px 0 8px; }
 .search input {
   flex: 1; min-width: 0;
   font-size: 22px; padding: 14px 16px;
@@ -149,23 +150,33 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
 .wa { background: #25d366; color: #0b3d1f; }
 .clear { background: #fff; color: var(--red); border: 2px solid var(--red); }
 
-/* Aktüel */
-.aktuel-title { font-size: 22px; margin: 6px 0 10px; }
-.aktuel-day { margin-bottom: 10px; }
-.aktuel-day summary {
-  list-style: none; cursor: pointer;
-  background: #d7141a; color: #fff; border-radius: 12px;
-  padding: 14px 16px; font-size: 20px; font-weight: 800; margin-bottom: 10px;
+/* Aktüel: açılır-kapanır bölümler, başlık kaydırırken üstte sabit */
+.aktuel-title { font-size: 22px; margin: 18px 0 2px; }
+.aktuel-title:first-child { margin-top: 6px; }
+.fold { margin-bottom: 10px; }
+.fold summary {
+  position: sticky; top: var(--top-h); z-index: 3;
+  display: flex; align-items: center; gap: 8px;
+  list-style: none; cursor: pointer; user-select: none;
+  border-radius: 12px; padding: 14px 16px; min-height: 56px;
+  font-size: 19px; font-weight: 800; line-height: 1.25;
 }
-.aktuel-day summary::after { content: " ▾"; }
-.aktuel-day[open] summary::after { content: " ▴"; }
-.aktuel-day summary small { font-weight: 400; font-size: 16px; }
-
-/* Broşürler */
-.brochure { margin-bottom: 24px; }
-.brochure h2 { font-size: 22px; margin: 6px 0 10px; }
-.brochure img { display: block; width: 100%; height: auto; border-radius: 12px; margin-bottom: 12px; background: #fff; }
-.brochure .src { font-size: 15px; color: var(--muted); }
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary small { font-weight: 400; font-size: 15px; white-space: nowrap; }
+.fold summary::after {
+  content: "Aç ▾"; margin-left: auto; flex: none;
+  font-size: 15px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, .25);
+}
+.fold[open] summary { border-radius: 12px 12px 0 0; box-shadow: 0 4px 10px rgba(0, 0, 0, .15); }
+.fold[open] summary::after { content: "Kapat ▴"; }
+.fold-body { padding-top: 10px; }
+.fold-body .page { display: block; width: 100%; height: auto; border-radius: 12px; margin-bottom: 12px; background: #fff; }
+.fold-body .pdf {
+  display: block; text-align: center; padding: 14px; margin-bottom: 8px;
+  border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--text); font-weight: 700; text-decoration: none;
+}
+.fold-body .src { font-size: 15px; color: var(--muted); margin: 0 0 6px; }
 
 /* Alt menü */
 .bottom {

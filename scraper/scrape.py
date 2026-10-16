@@ -19,6 +19,8 @@ import html
 import http.client as http_client
 import json
 import re
+import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -311,6 +313,57 @@ def scrape_cagdas():
     return {"name": "Çağdaş", "url": "https://www.cagdasmarketler.com/tr", "images": imgs}
 
 
+SOK_FIRSATLAR = "https://kurumsal.sokmarket.com.tr/tr/firsatlar"
+SOK_CARD = re.compile(
+    r'<a href="(/uploads/pdf/[^"]+)"[^>]*bc-aktual-card.*?aktual-card-title[^>]*>(.*?)</h3>'
+    r'.*?aktual-card-date[^>]*>([^<]+)<.*?<img src="([^"]+)"', re.S)
+
+
+def range_end(label, today):
+    """'14 - 20 Ekim 2026' / '28 Ekim - 3 Kasım 2026' -> bitiş tarihi."""
+    m = re.search(r"-\s*(\d+)\s+(\w+)", label)
+    if not m or m.group(2).lower() not in TR_MONTHS:
+        return None
+    return aktuel_dates(f"{m.group(1)} {m.group(2)}", today)[1]
+
+
+def scrape_sok(out_dir):
+    """Şok 'Haftanın / Hafta Sonu Fırsatları' PDF broşürleri.
+
+    PDF'ler 15-20 MB; telefonda zahmetli olmasın diye sayfalar pdftoppm ile
+    küçük JPEG'lere çevrilir (GitHub'da kurulu). pdftoppm yoksa sadece kapak görseli
+    ve PDF bağlantısı verilir.
+    """
+    today = datetime.now(TR_TZ).date()
+    base = "https://kurumsal.sokmarket.com.tr"
+    result = []
+    for pdf, title, date, cover in SOK_CARD.findall(http(SOK_FIRSATLAR)):
+        title = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", title)).split())
+        date = date.strip()
+        end = range_end(date, today)
+        if end and end < today:  # süresi geçmiş broşür
+            continue
+        entry = {"name": "Şok", "title": f"Şok {title}", "date": date, "url": SOK_FIRSATLAR,
+                 "pdf": base + pdf, "images": [base + cover]}
+        if shutil.which("pdftoppm"):
+            slug = re.sub(r"[^a-z0-9]+", "-", Path(pdf).stem.lower()).strip("-")
+            sok_dir = Path(out_dir) / "sok"
+            sok_dir.mkdir(parents=True, exist_ok=True)
+            pdf_path = sok_dir / f"{slug}.pdf"
+            req = urllib.request.Request(base + pdf, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                pdf_path.write_bytes(r.read())
+            subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=70", "-scale-to", "1100",
+                            str(pdf_path), str(sok_dir / slug)], check=True)
+            pdf_path.unlink()
+            pages = sorted(sok_dir.glob(f"{slug}-*.jpg"), key=lambda p: int(p.stem.rsplit("-", 1)[1]))
+            entry["images"] = [f"data/sok/{p.name}" for p in pages]
+        result.append(entry)
+    if not result:
+        raise RuntimeError("şok: güncel broşür bulunamadı")
+    return result
+
+
 def scrape_anadolutat():
     page = http("https://www.anadolutat.com/kampanyalar")
     # Kampanyalar Next.js verisi içinde kaçışlı JSON olarak geliyor.
@@ -388,6 +441,10 @@ def main():
             b, ok[name] = run(name, fn, prev_br.get(name))
             if b:
                 brochures.append(b)
+        # Şok'un sayfa görselleri her yayında yeniden üretilir; çökerse önceki gün verisi
+        # işe yaramaz (görseller yok), o yüzden yedeği yok.
+        sok, ok["Şok"] = run("Şok broşür", lambda: scrape_sok(args.out), [])
+        brochures.extend(sok)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
