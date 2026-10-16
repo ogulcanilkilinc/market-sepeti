@@ -37,8 +37,12 @@ async function loadData() {
       cw: norm(it.c).split(" ").filter(Boolean),
       u: unitValue(it.p[0][2]),
     }));
-    const d = new Date(data.updated);
-    $("#updated").textContent = "Fiyatlar " + d.toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) + " itibarıyla";
+    const fmt = (s, opts) => new Date(s).toLocaleString("tr-TR", { day: "numeric", month: "long", ...opts });
+    let text = "Fiyatlar " + fmt(data.updated, { hour: "2-digit", minute: "2-digit" }) + " itibarıyla";
+    // Yunus evdeki bilgisayardan gelir; eski kaldıysa belirt.
+    const y = data.stamps?.yunus;
+    if (y && y.slice(0, 10) !== data.updated.slice(0, 10)) text += ` (Yunus: ${fmt(y)})`;
+    $("#updated").textContent = text;
   } catch (e) {
     $("#updated").textContent = "Fiyatlar yüklenemedi. İnternet bağlantını kontrol et.";
   }

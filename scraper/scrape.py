@@ -347,6 +347,8 @@ def main():
     ap.add_argument("--previous", default="", help="bir önceki products.json (yedek için)")
     ap.add_argument("--previous-brochures", default="")
     ap.add_argument("--only", default="", help="test için: mf,yunus,aktuel,brochures")
+    ap.add_argument("--yunus-file", default="",
+                    help="bilgisayardan gönderilen yunus.json; verilirse Yunus burada taranmaz (bkz. push_yunus.py)")
     args = ap.parse_args()
 
     prev = load_previous(args.previous) if args.previous else {}
@@ -356,14 +358,29 @@ def main():
     only = set(filter(None, args.only.split(",")))
     want = lambda k: not only or k in only  # noqa: E731
 
-    ok = {}
-    sources = {}
+    now = datetime.now(TR_TZ).isoformat(timespec="minutes")
+    ok, sources = {}, {}
+    # Her kaynağın verisinin ne zaman toplandığı (yedek veri kullanılırsa eski tarih kalır).
+    prev_stamps = prev.get("stamps", {})
+    stamps = {}
+
+    def collect(key, name, fn):
+        sources[key], ok[key] = run(name, fn, prev_src.get(key, []))
+        stamps[key] = now if ok[key] else prev_stamps.get(key)
+
     if want("mf"):
-        sources["mf"], ok["mf"] = run("marketfiyati", scrape_marketfiyati, prev_src.get("mf", []))
+        collect("mf", "marketfiyati", scrape_marketfiyati)
     if want("yunus"):
-        sources["yunus"], ok["yunus"] = run("yunus", scrape_yunus, prev_src.get("yunus", []))
+        if args.yunus_file:
+            y = load_previous(args.yunus_file)
+            ok["yunus"] = bool(y.get("items"))
+            sources["yunus"] = y["items"] if ok["yunus"] else prev_src.get("yunus", [])
+            stamps["yunus"] = y["updated"] if ok["yunus"] else prev_stamps.get("yunus")
+            log(f"yunus dosyadan: {len(sources['yunus'])} ürün ({stamps['yunus']})")
+        else:
+            collect("yunus", "yunus", scrape_yunus)
     if want("aktuel"):
-        sources["aktuel"], ok["aktuel"] = run("BİM aktüel", scrape_bim_aktuel, prev_src.get("aktuel", []))
+        collect("aktuel", "BİM aktüel", scrape_bim_aktuel)
 
     brochures = []
     if want("brochures"):
@@ -372,11 +389,10 @@ def main():
             if b:
                 brochures.append(b)
 
-    now = datetime.now(TR_TZ).isoformat(timespec="minutes")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "products.json").write_text(
-        json.dumps({"updated": now, "ok": ok, "sources": sources}, ensure_ascii=False, separators=(",", ":")),
+        json.dumps({"updated": now, "ok": ok, "stamps": stamps, "sources": sources}, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
     (out / "brochures.json").write_text(

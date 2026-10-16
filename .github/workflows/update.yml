@@ -34,8 +34,16 @@ jobs:
           curl -sfL "$BASE/products.json" -o /tmp/prev-products.json || echo "önceki veri yok"
           curl -sfL "$BASE/brochures.json" -o /tmp/prev-brochures.json || echo "önceki broşür yok"
 
+      # Yunus, GitHub sunucularına yanıt vermiyor; fiyatlarını evdeki bilgisayar her sabah
+      # yunus-data dalına gönderiyor (scraper/push_yunus.py).
+      - name: Yunus verisini al
+        run: curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/yunus-data/yunus.json" -o /tmp/yunus.json || echo "yunus verisi yok"
+
       - name: Fiyatları topla
-        run: python scraper/scrape.py --out web/data --previous /tmp/prev-products.json --previous-brochures /tmp/prev-brochures.json
+        run: >
+          python scraper/scrape.py --out web/data
+          --previous /tmp/prev-products.json --previous-brochures /tmp/prev-brochures.json
+          --yunus-file /tmp/yunus.json
 
       - uses: actions/upload-pages-artifact@v3
         with:
