@@ -587,9 +587,11 @@ def main():
 
     if want("mf"):
         collect("mf", "marketfiyati", scrape_marketfiyati)
+    # Yunus (yunusonline.com) ve Akakçe bulut sunucularını engelliyor; GitHub'da bu veriler
+    # evdeki bilgisayarın gönderdiği yunus.json'dan gelir (push_yunus.py).
+    y = load_previous(args.yunus_file) if args.yunus_file else {}
     if want("yunus"):
         if args.yunus_file:
-            y = load_previous(args.yunus_file)
             ok["yunus"] = bool(y.get("items"))
             sources["yunus"] = y["items"] if ok["yunus"] else prev_src.get("yunus", [])
             stamps["yunus"] = y["updated"] if ok["yunus"] else prev_stamps.get("yunus")
@@ -599,13 +601,22 @@ def main():
     if want("aktuel"):
         collect("aktuel", "BİM aktüel", scrape_bim_aktuel)
         collect("a101_aktuel", "A101 aktüel", scrape_a101_aktuel)
-        collect("yunus_aktuel", "Yunus aktüel", lambda: yunus_aktuel()["items"])
+        if args.yunus_file:
+            ok["yunus_aktuel"] = "aktuel" in y
+            sources["yunus_aktuel"] = y["aktuel"] if ok["yunus_aktuel"] else prev_src.get("yunus_aktuel", [])
+            stamps["yunus_aktuel"] = y["updated"] if ok["yunus_aktuel"] else prev_stamps.get("yunus_aktuel")
+            log(f"yunus aktüel dosyadan: {len(sources['yunus_aktuel'])} ürün")
+        else:
+            collect("yunus_aktuel", "Yunus aktüel", lambda: yunus_aktuel()["items"])
 
     brochures = []
     if want("brochures"):
         for name, fn in (("Çağdaş", scrape_cagdas), ("Anadolu Tat", scrape_anadolutat),
                          ("Yunus", lambda: yunus_aktuel()["brochure"])):
-            b, ok[name] = run(name, fn, prev_br.get(name))
+            if name == "Yunus" and args.yunus_file:
+                b, ok[name] = y.get("brochure") or prev_br.get(name), bool(y.get("brochure"))
+            else:
+                b, ok[name] = run(name, fn, prev_br.get(name))
             if b:
                 brochures.append(b)
         # Şok'un sayfa görselleri her yayında yeniden üretilir; çökerse önceki gün verisi

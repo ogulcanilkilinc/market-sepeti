@@ -1,7 +1,7 @@
 """Yunus fiyatlarını bu bilgisayardan toplayıp GitHub'a gönderir.
 
-Yunus Online, GitHub'ın (yurt dışındaki) sunucularına yanıt vermiyor; bu yüzden
-tarama Türkiye'deki bu bilgisayarda yapılır. Sonuç, repodaki `yunus-data`
+Yunus Online ve Yunus aktüel paylaşımlarını toplayan Akakçe, GitHub'ın (yurt dışındaki)
+sunucularına yanıt vermiyor; bu yüzden tarama Türkiye'deki bu bilgisayarda yapılır. Sonuç, repodaki `yunus-data`
 dalına tek dosya (yunus.json) olarak gönderilir. Dalın geçmişi her seferinde
 sıfırlanır, repo şişmez. Günlük GitHub çalıştırması bu dosyayı alıp birleştirir.
 
@@ -32,13 +32,19 @@ def main():
 
     scrape.log("başladı:", datetime.now().isoformat(timespec="seconds"))
     items = scrape.scrape_yunus()
+    payload = {"updated": datetime.now(scrape.TR_TZ).isoformat(timespec="minutes"), "items": items}
+    # Yunus aktüel (Akakçe) de bulut sunucularını engelliyor; onu da buradan gönderiyoruz.
+    try:
+        akt = scrape.yunus_aktuel()
+        payload["aktuel"], payload["brochure"] = akt["items"], akt["brochure"]
+    except Exception as e:  # noqa: BLE001 - aktüel alınamazsa katalog yine gönderilsin
+        scrape.log("yunus aktüel alınamadı:", repr(e))
     repo_url = subprocess.run(["git", "-C", str(HERE), "remote", "get-url", "origin"],
                               check=True, capture_output=True, text=True).stdout.strip()
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
-        Path(d, "yunus.json").write_text(json.dumps(
-            {"updated": datetime.now(scrape.TR_TZ).isoformat(timespec="minutes"), "items": items},
-            ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        Path(d, "yunus.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                                         encoding="utf-8")
 
         def git(*args):
             subprocess.run(["git", "-C", d, *args], check=True)
