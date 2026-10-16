@@ -181,11 +181,22 @@ def scrape_yunus():
     return list(products.values())
 
 
+def yunus_page(url):
+    """Yunus sunucusu yoğunken ara sıra geçici 404 veriyor; bekleyip yeniden dener."""
+    for attempt in range(3):
+        try:
+            return http(url)
+        except urllib.error.HTTPError as e:
+            if e.code != 404 or attempt == 2:
+                raise
+            time.sleep(5)
+
+
 def yunus_category(path, products):
     page, prev_hrefs = 1, None
     while page <= 50:
         url = f"{YUNUS}{path}?p=x[{page}]-o[1]"
-        cards = YUNUS_CARD.findall(http(url))
+        cards = YUNUS_CARD.findall(yunus_page(url))
         hrefs = [c[0] for c in cards]
         if not cards or hrefs == prev_hrefs:  # son sayfa geçildi
             break
