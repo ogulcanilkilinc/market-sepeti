@@ -554,6 +554,16 @@ $("#results").addEventListener("click", (e) => {
 });
 $("#aktuel").addEventListener("click", onCardClick);
 
+// Ürün resmine dokununca büyük göster (A101'in küçük resmi yerine büyüğü).
+document.addEventListener("click", (e) => {
+  const img = e.target.closest(".card-head img");
+  if (!img) return;
+  $("#imgBig").src = img.src.replace(/_256x256\./, "_600x600.");
+  $("#imgName").textContent = img.closest(".card").querySelector(".name").textContent;
+  $("#imgDlg").showModal();
+});
+$("#imgDlg").addEventListener("click", () => $("#imgDlg").close());
+
 let aDebounce;
 $("#aq").addEventListener("input", () => { clearTimeout(aDebounce); aDebounce = setTimeout(renderAktuel, 300); });
 $("#aktuelForm").addEventListener("submit", (e) => { e.preventDefault(); renderAktuel(); $("#aq").blur(); });
