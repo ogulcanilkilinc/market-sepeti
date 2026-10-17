@@ -607,5 +607,13 @@ $("#installBtn").addEventListener("click", async () => {
 });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
+// Android uygulamayı arka planda bekletip kaldığı yerden açıyor; uzun aradan sonra
+// öne gelince sayfayı yenile ki yeni sürüm ve günün fiyatları gelsin.
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (hiddenAt && Date.now() - hiddenAt > 30 * 60 * 1000) location.reload();
+});
+
 saveCart();
 loadData();
