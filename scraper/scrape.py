@@ -296,6 +296,8 @@ def scrape_bim_aktuel():
             title = re.search(r'<h2 class="title">\s*([^<]+?)\s*</h2>', block)
             whole = re.search(r'class="text quantify">([\d.]+),?</div>', block)
             kurus = re.search(r'<span class="number">(\d+)</span>', block)
+            # Miktar "• 5 L" gibi yazıyor; bazı ürünlerde boş ("•"), o zaman sitede de miktar yok.
+            size = re.search(r'<div class="gramajadet">(.*?)</div>', block, re.S)
             if not (title and whole):
                 continue
             price = float(whole.group(1).replace(".", "") + "." + (kurus.group(1) if kurus else "00"))
@@ -304,8 +306,9 @@ def scrape_bim_aktuel():
             if brand_s and title_s.upper().startswith(brand_s.upper()):  # "CREALITY CREALITY ..." tekrarı
                 brand_s = ""
             name = tr_title(f"{brand_s} {title_s}")
+            size_s = " ".join(html.unescape(size.group(1)).replace("•", " ").split()) if size else ""
             items.append({
-                "n": name, "s": "", "i": img.group(1) if img else "", "c": "", "d": label.strip(), "ds": start.isoformat(),
+                "n": name, "s": size_s, "i": img.group(1) if img else "", "c": "", "d": label.strip(), "ds": start.isoformat(),
                 "p": [["bim", price, None, f"Aktüel · {label.strip()}"]],
             })
         time.sleep(0.5)
