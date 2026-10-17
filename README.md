@@ -17,14 +17,14 @@ Adres: https://ogulcanilkilinc.github.io/market-sepeti/ (yüklü uygulama bozulm
 
 | Market | Kaynak |
 |---|---|
-| A101, BİM, Şok, Migros, CarrefourSA, Tarım Kredi | [marketfiyati.org.tr](https://marketfiyati.org.tr) (TÜBİTAK), Kızılay çevresi 5 km'deki şubeler |
+| A101, BİM, Şok, Migros, CarrefourSA, Tarım Kredi | [marketfiyati.org.tr](https://marketfiyati.org.tr) (TÜBİTAK), Nasuh Akar Mahallesi (Çankaya) çevresi 5 km'deki şubeler |
 | Yunus | [yunusonline.com](https://yunusonline.com) — site yurt dışından (GitHub) gelen bağlantıları kestiği için tam katalog evdeki bilgisayardan gönderilir (`scraper/push_yunus.py`) |
 | Yunus aktüel | [Akakçe Yunus broşürleri](https://www.akakce.com/brosurler/yunusmarket) — haftalık paylaşımların sayfa görselleri ve broşürdeki ürünlerin adı/fiyatı. Akakçe de bulut sunucularını engellediği için Yunus kataloğuyla birlikte bilgisayardan gönderilir |
 | A101 aktüel | A101'in kendi API'si (rio.a101.com.tr): "Aldın Aldın" (Z110) ve "Haftanın Yıldızları" (Z100) kampanyaları |
 | BİM aktüel | [bim.com.tr aktüel ürünler](https://www.bim.com.tr/Categories/100/aktuel-urunler.aspx) |
 | Şok broşürü | [kurumsal.sokmarket.com.tr/tr/firsatlar](https://kurumsal.sokmarket.com.tr/tr/firsatlar) (PDF → sayfa resimleri + aranabilir metin) |
-| Çağdaş | [cagdasmarketler.com](https://www.cagdasmarketler.com/tr) haftalık broşür (sadece görsel) |
-| Anadolu Tat | [anadolutat.com/kampanyalar](https://www.anadolutat.com/kampanyalar) (sadece görsel) |
+| Çağdaş | [cagdasmarketler.com](https://www.cagdasmarketler.com/tr) haftalık broşür (görsel; içindeki yazı OCR ile okunup aranabilir) |
+| Anadolu Tat | [anadolutat.com/kampanyalar](https://www.anadolutat.com/kampanyalar) (görsel; içindeki yazı OCR ile okunup aranabilir) |
 
 Fiyatlar her gün 09:00'da GitHub Actions ile otomatik toplanır ve GitHub Pages'e yayınlanır
 (`.github/workflows/update.yml`). Bir kaynak o gün çalışmazsa bir önceki günün verisi korunur.

@@ -16,7 +16,7 @@ const unitValue = (u) => { const m = u && u.match(/([\d.]+,\d+)/); return m ? pa
 let items = [];
 let sources = null; // ham kaynaklar (fiyat takibi kontrolü için)
 let alerts = [];    // fiyat takibi listesi (common.js: loadAlerts/saveAlerts)
-let brochures = []; // Çağdaş, Anadolu Tat, Şok broşürleri; Şok'ta sayfa metinleri de var (texts)
+let brochures = []; // Çağdaş, Anadolu Tat, Şok, Yunus broşürleri; sayfa metinleri (texts: PDF metni ya da OCR) ile aranır
 
 async function loadBrochures() {
   try {
@@ -328,7 +328,7 @@ function renderAktuel(force = false) {
     return;
   }
 
-  // Arama: sadece eşleşen aktüel ürünleri ve Şok broşüründe ürünün geçtiği sayfalar, açık gelir.
+  // Arama: sadece eşleşen aktüel ürünleri ve broşürlerde ürünün geçtiği sayfalar, açık gelir.
   const { akt, pages } = aktuelMatches(toTokens(q));
   const unsearchable = brochures.filter((b) => !b.texts);
   let html = "";

@@ -7,8 +7,8 @@ Her gün GitHub Actions'ta çalışır ve web/data/ altına iki dosya yazar:
 Kaynaklar:
   marketfiyati.org.tr (TÜBİTAK) -> A101, BİM, Şok, Migros, CarrefourSA, Tarım Kredi
   yunusonline.com               -> Yunus Market
-  cagdasmarketler.com           -> Çağdaş broşürü (görsel)
-  anadolutat.com/kampanyalar    -> Anadolu Tat fırsatları (görsel)
+  cagdasmarketler.com           -> Çağdaş broşürü (görsel + OCR metni)
+  anadolutat.com/kampanyalar    -> Anadolu Tat fırsatları (görsel + OCR metni)
 
 Bir kaynak çökerse, o kaynağın bir önceki günkü verisi (--previous) korunur.
 Sadece standart kütüphane kullanılır.
@@ -31,8 +31,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Annemin konumu: Çankaya / Kızılay merkezi. Yarıçap km.
-LAT, LON, DISTANCE_KM = 39.9208, 32.8541, 5
+# Annemin konumu: Çankaya / Nasuh Akar Mahallesi merkezi (OpenStreetMap). Yarıçap km.
+LAT, LON, DISTANCE_KM = 39.9104, 32.8217, 5
 
 MF_API = "https://api.marketfiyati.org.tr"
 MF_MARKETS = {"a101", "bim", "sok", "migros", "carrefour", "tarim_kredi"}
@@ -467,6 +467,26 @@ def yunus_aktuel():
 
 # ─── Broşürler ──────────────────────────────────────────────────────────
 
+def add_ocr(entry):
+    """Resim broşürlere tesseract ile sayfa metni ekler; Şok'taki gibi içinde arama yapılabilsin.
+
+    tesseract (GitHub'da kurulu) yoksa broşür metinsiz, sadece resim olarak kalır.
+    """
+    if not shutil.which("tesseract"):
+        return entry
+    texts = []
+    for url in entry["images"]:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            img = r.read()
+        # psm 11: afiş gibi dağınık yazılar için.
+        out = subprocess.run(["tesseract", "stdin", "stdout", "-l", "tur", "--psm", "11"],
+                             input=img, check=True, capture_output=True).stdout
+        texts.append(" ".join(out.decode("utf-8", "replace").split()))
+    entry["texts"] = texts
+    return entry
+
+
 def scrape_cagdas():
     page = http("https://www.cagdasmarketler.com/tr")
     imgs = [u.strip() for u in re.findall(r'src="(https://www\.cagdasmarketler\.com/images/uploads/(?:Indirimler|Firsatlar)/[^"]+)"', page)]
@@ -475,7 +495,7 @@ def scrape_cagdas():
     imgs.sort(key=lambda u: 0 if "/Indirimler/" in u else 1)
     if not imgs:
         raise RuntimeError("çağdaş: görsel bulunamadı")
-    return {"name": "Çağdaş", "url": "https://www.cagdasmarketler.com/tr", "images": imgs}
+    return add_ocr({"name": "Çağdaş", "url": "https://www.cagdasmarketler.com/tr", "images": imgs})
 
 
 SOK_FIRSATLAR = "https://kurumsal.sokmarket.com.tr/tr/firsatlar"
@@ -540,7 +560,7 @@ def scrape_anadolutat():
     imgs = ["https://www.anadolutat.com" + i for i in dict.fromkeys(ids)]
     if not imgs:
         raise RuntimeError("anadolu tat: kampanya görseli bulunamadı")
-    return {"name": "Anadolu Tat", "url": "https://www.anadolutat.com/kampanyalar", "images": imgs}
+    return add_ocr({"name": "Anadolu Tat", "url": "https://www.anadolutat.com/kampanyalar", "images": imgs})
 
 
 # ─── Ana akış ───────────────────────────────────────────────────────────
